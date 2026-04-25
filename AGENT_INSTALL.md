@@ -1,87 +1,216 @@
-# AGENT_INSTALL.md - 智能体安装指南
+# AGENT_INSTALL.md - 智能体安装与配置指南
 
-本文件专供 AI 智能体（Claude Code、Codex 等）阅读，提供精确的安装命令。
+本文件专供 AI 智能体（Claude Code、Codex 等）阅读。
 
-## 一键安装命令
+**核心原则：智能体应主动检测并自动配置，不要让用户手动设置。**
+
+---
+
+## 1. 安装 vtf
 
 ```bash
-# 方式1: uvx（推荐，无需克隆）
+# uvx 一键安装（推荐）
 uvx --from git+https://github.com/richardwild426/v2f.git vtf doctor
 
-# 方式2: pip
+# 或 pip 安装
 pip install git+https://github.com/richardwild426/v2f.git
 vtf doctor
-
-# 方式3: 本地克隆开发
-git clone https://github.com/richardwild426/v2f.git vtf
-cd vtf
-uv sync
-uv run vtf doctor
 ```
 
-## 前置依赖安装
+---
 
-vtf 需要以下外部工具：
+## 2. 智能体自动配置流程
+
+### 2.1 检测 FunASR 环境
+
+**智能体必须执行以下检测**，找出用户系统上哪个 Python 有 FunASR：
 
 ```bash
-# yt-dlp（必需）
-pip install yt-dlp
+# 检测命令 - 按优先级尝试
+for py in python3 python ~/.venv/funasr/bin/python ~/.local/share/mise/installs/python/*/bin/python; do
+  if [ -x "$py" ]; then
+    "$py" -c "import funasr; print(funasr.__version__)" 2>/dev/null && echo "✅ FOUND: $py"
+  fi
+done
+```
 
-# FunASR（必需）- 需要独立 Python 环境
+或用 Python 一行检测：
+
+```bash
+python3 -c "
+import shutil, subprocess, sys
+candidates = [
+  shutil.which('python3'),
+  shutil.which('python'),
+  '~/.venv/funasr/bin/python',
+  '~/.local/share/mise/installs/python/3.*/bin/python',
+]
+for c in candidates:
+  if not c: continue
+  c = c.replace('~', '$HOME')
+  try:
+    r = subprocess.run([c, '-c', 'import funasr'], capture_output=True, timeout=5)
+    if r.returncode == 0:
+      print(f'FUNASR_PYTHON={c}')
+      sys.exit(0)
+  except: pass
+print('FUNASR_PYTHON=NOT_FOUND')
+"
+```
+
+### 2.2 自动配置 FunASR
+
+**如果检测到 FunASR**：
+
+写入用户级配置文件（永久生效）：
+
+```bash
+# 创建配置目录
+mkdir -p ~/.config/vtf
+
+# 写入配置
+cat > ~/.config/vtf/config.toml << EOF
+[transcribe]
+funasr_python = "$FUNASR_PYTHON"
+asr_model = "paraformer-zh"
+
+[platform.bilibili]
+cookies_from_browser = "chrome"
+EOF
+```
+
+**如果未检测到 FunASR**：
+
+智能体应主动创建专用环境：
+
+```bash
+# 创建 FunASR 专用虚拟环境
 python3 -m venv ~/.venv/funasr
-~/.venv/funasr/bin/pip install funasr
-export VTF_TRANSCRIBE_FUNASR_PYTHON=~/.venv/funasr/bin/python
+~/.venv/funasr/bin/pip install funasr modelscope
 
-# lark-cli（可选，仅飞书表格需要）
+# 验证安装
+~/.venv/funasr/bin/python -c "import funasr; print('OK')"
+
+# 写入配置
+mkdir -p ~/.config/vtf
+cat > ~/.config/vtf/config.toml << EOF
+[transcribe]
+funasr_python = "~/.venv/funasr/bin/python"
+asr_model = "paraformer-zh"
+EOF
+```
+
+### 2.3 验证配置
+
+```bash
+vtf doctor
+```
+
+预期输出：
+```
+✅ yt-dlp: /usr/local/bin/yt-dlp
+✅ FunASR: ~/.venv/funasr/bin/python (配置: funasr_python = ~/.venv/funasr/bin/python)
+```
+
+---
+
+## 3. 安装其他依赖
+
+### yt-dlp
+
+```bash
+pip install yt-dlp
+# 或
+brew install yt-dlp
+```
+
+### lark-cli（可选，飞书表格）
+
+```bash
 pip install lark-cli
 lark-cli auth login
 ```
 
-## 快速验证
+---
 
-```bash
-# 1. 环境检查
-vtf doctor
+## 4. 完整配置示例
 
-# 2. 测试元数据获取
-vtf fetch "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+智能体应生成并写入 `~/.config/vtf/config.toml`：
 
-# 3. 测试端到端（跳过 AI 分析）
-vtf run "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --skip summary --skip breakdown --skip rewrite --sink markdown
+```toml
+[output]
+sink = "markdown"
+
+[transcribe]
+funasr_python = "~/.venv/funasr/bin/python"
+asr_model = "paraformer-zh"
+vad_model = "fsmn-vad"
+punc_model = "ct-punc"
+
+[platform.bilibili]
+cookies_from_browser = "chrome"
+
+[sink.feishu]  # 可选
+base_token = ""
+table_id = ""
+schema = "examples/schemas/baokuan.toml"
 ```
 
-## 环境变量配置
+---
+
+## 5. 智能体配置检查清单
+
+安装完成后，智能体应确认：
+
+| 检查项 | 命令 | 预期结果 |
+|--------|------|----------|
+| vtf 已安装 | `vtf --version` | 输出版本号 |
+| yt-dlp 已安装 | `yt-dlp --version` | 输出版本号 |
+| FunASR 已配置 | `vtf doctor` | ✅ FunASR: ... |
+| 配置文件存在 | `cat ~/.config/vtf/config.toml` | 包含 funasr_python |
+| 测试转录 | `vtf fetch "https://youtu.be/dQw4w9WgXcQ"` | 输出 JSON 元数据 |
+
+---
+
+## 6. 快速验证流水线
 
 ```bash
-# 最小配置（markdown 输出）
-export VTF_OUTPUT_SINK="markdown"
-export VTF_PLATFORM_BILIBILI_COOKIES_FROM_BROWSER="chrome"
-
-# 飞书表格配置
-export VTF_SINK_FEISHU_BASE_TOKEN="your_token"
-export VTF_SINK_FEISHU_TABLE_ID="your_table_id"
-export VTF_SINK_FEISHU_SCHEMA="examples/schemas/baokuan.toml"
+# 端到端测试（跳过 AI 分析）
+vtf run "https://www.youtube.com/watch?v=dQw4w9WgXcQ" \
+  --skip summary --skip breakdown --skip rewrite \
+  --sink markdown
 ```
 
-## 常见问题
+---
 
-### yt-dlp 412 错误（B站）
+## 7. 常见问题（智能体处理）
 
-B站视频需要浏览器 Cookie：
+### B站 412 错误
 
-```bash
-# 确保 Chrome 已登录 B站，然后：
-export VTF_PLATFORM_BILIBILI_COOKIES_FROM_BROWSER="chrome"
-```
+**智能体操作**：
+1. 确认用户 Chrome 已登录 B站
+2. 写入配置：`cookies_from_browser = "chrome"`
+3. 或尝试 Safari/Firefox
 
-### FunASR 未找到
+### FunASR 首次运行慢
 
-```bash
-# 指定 FunASR Python 路径
-export VTF_TRANSCRIBE_FUNASR_PYTHON=/path/to/python-with-funasr
+首次转录会下载模型（~1GB），告知用户等待。
 
-# 或创建专用环境
-python3 -m venv ~/.venv/funasr
-~/.venv/funasr/bin/pip install funasr
-export VTF_TRANSCRIBE_FUNASR_PYTHON=~/.venv/funasr/bin/python
-```
+### macOS mise Python
+
+mise 管理的 Python 路径：`~/.local/share/mise/installs/python/3.*/bin/python`
+
+---
+
+## 附录：环境变量优先级
+
+智能体可使用环境变量临时覆盖：
+
+| 环境变量 | 配置项 | 示例 |
+|----------|--------|------|
+| `VTF_TRANSCRIBE_FUNASR_PYTHON` | transcribe.funasr_python | `~/.venv/funasr/bin/python` |
+| `VTF_OUTPUT_SINK` | output.sink | `markdown` / `feishu` |
+| `VTF_PLATFORM_BILIBILI_COOKIES_FROM_BROWSER` | platform.bilibili.cookies_from_browser | `chrome` |
+| `VTF_SINK_FEISHU_BASE_TOKEN` | sink.feishu.base_token | 飞书 token |
+
+配置优先级：`环境变量 > 项目 vtf.toml > 用户 ~/.config/vtf/config.toml > 默认值`
