@@ -1,0 +1,52 @@
+# vtf 示例配置文件
+# 复制到 ~/.config/vtf/config.toml 或项目根目录 ./vtf.toml
+
+[output]
+# 输出目标: "markdown" 或 "feishu"
+sink = "markdown"
+
+[transcribe]
+# FunASR Python 路径（留空则自动检测）
+funasr_python = ""
+# ASR 模型
+asr_model = "paraformer-zh"
+vad_model = "fsmn-vad"
+punc_model = "ct-punc"
+batch_size_s = 300
+# 纠错字典文件路径（可选）
+corrections_file = ""
+
+[platform.bilibili]
+# B站 Cookie 浏览器来源: chrome / safari / firefox / edge
+cookies_from_browser = "chrome"
+# 或直接指定 cookie 文件路径
+cookies_file = ""
+
+[platform.youtube]
+# YouTube 通常不需要 Cookie
+cookies_from_browser = ""
+cookies_file = ""
+
+[download]
+audio_format = "mp3"
+audio_quality = "0"  # 0 = 最高质量
+retries = 3
+
+[sink.markdown]
+# 自定义模板路径（留空使用内置模板）
+template = ""
+
+[sink.feishu]
+# 飞书表格配置（通过环境变量或直接填写）
+base_token = ""
+table_id = ""
+# 字段 schema 文件路径
+schema = ""
+# lark-cli 命令名（可替换）
+lark_cli = "lark-cli"
+
+[analyze.prompts]
+# 自定义 prompt 模板路径（留空使用内置模板）
+summary = ""
+breakdown = ""
+rewrite = ""

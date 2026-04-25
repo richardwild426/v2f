@@ -1,55 +1,53 @@
 ---
 name: vtf
-description: 视频 → 转录 → AI 分析 → markdown / 飞书表格的通用流水线
+description: 视频 → 转录 → AI 分析 → markdown / 飞书表格的通用流水线 CLI
 tags: [video, transcription, funasr, feishu, bitable, content-analysis, bilibili, youtube]
 category: media
 ---
 
-# 使用 vtf
+# vtf - 视频内容流水线
 
-通过 `uvx --from git+<repo> vtf <subcommand>` 调用。
+## 安装
 
-## 命令清单
+```bash
+uvx --from git+https://github.com/OWNER/REPO.git vtf doctor
+```
+
+> 替换 `OWNER/REPO` 为实际仓库地址。
+
+详见 [AGENT_INSTALL.md](AGENT_INSTALL.md)。
+
+## 命令
 
 | 命令 | 说明 |
 |------|------|
-| `vtf run <url>` | 端到端流水线 |
-| `vtf fetch <url>` | 抓取视频元数据 |
-| `vtf download --meta m.json` | 下载音频 |
-| `vtf transcribe <audio>` | FunASR 转录 |
-| `vtf merge` | 合并句子为字幕行(stdin) |
-| `vtf analyze --kind summary` | 生成 LLM prompt(stdin) |
-| `vtf assemble` | 拼装最终 result.json |
-| `vtf emit --sink markdown` | 输出到 sink(stdin) |
-| `vtf doctor` | 环境自检 |
+| `vtf run <url>` | 端到端 |
+| `vtf fetch <url>` | 元数据 |
+| `vtf transcribe <audio>` | 转录 |
+| `vtf analyze --kind X` | LLM prompt |
+| `vtf emit --sink X` | 输出 |
+| `vtf doctor` | 环境检查 |
 
-## analyze 子命令契约
+## 智能体契约
 
-`vtf analyze --kind summary` 输出 JSON：
-```json
-{
-  "kind": "summary",
-  "prompt": "<完整渲染的 prompt>",
-  "context": {"title": "...", "lines_count": 42},
-  "schema_hint": "expected: {text, points[], tags[]}",
-  "result": null
-}
-```
+`vtf analyze --kind summary` 输出 JSON，`result` 字段为 null。
 
-**agent 必须执行 prompt 并把结果回填到 result 字段**，再交给 `vtf assemble`。
+**智能体必须**：
+1. 执行 `prompt` 字段内容
+2. 填充 `result` 字段
+3. 传递给 `vtf assemble`
 
-## 飞书配置
+## 配置
 
 ```bash
-export VTF_SINK_FEISHU_BASE_TOKEN="你的base_token"
-export VTF_SINK_FEISHU_TABLE_ID="你的table_id"
+export VTF_OUTPUT_SINK="markdown"
+export VTF_PLATFORM_BILIBILI_COOKIES_FROM_BROWSER="chrome"
+export VTF_TRANSCRIBE_FUNASR_PYTHON="/path/to/funasr-python"
+```
+
+飞书表格：
+```bash
+export VTF_SINK_FEISHU_BASE_TOKEN="token"
+export VTF_SINK_FEISHU_TABLE_ID="table_id"
 export VTF_SINK_FEISHU_SCHEMA="examples/schemas/baokuan.toml"
-```
-
-或使用 legacy 别名：`TABLE_TOKEN` / `TABLE_ID`。
-
-## 环境自检
-
-```bash
-vtf doctor
 ```
