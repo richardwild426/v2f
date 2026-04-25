@@ -10,12 +10,9 @@ category: media
 ## 安装
 
 ```bash
-uvx --from git+https://github.com/OWNER/REPO.git vtf doctor
-```
+uvx --from git+https://github.com/richardwild426/v2f.git vtf doctor
 
-> 替换 `OWNER/REPO` 为实际仓库地址。
-
-详见 [AGENT_INSTALL.md](AGENT_INSTALL.md)。
+详见 [AGENT_INSTALL.md](../../AGENT_INSTALL.md)。
 
 ## 命令
 

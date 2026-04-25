@@ -14,11 +14,11 @@
 ### 1. 安装（推荐 uvx）
 
 ```bash
-# 从 GitHub 安装（替换 OWNER/REPO 为实际仓库）
-uvx --from git+https://github.com/OWNER/REPO.git vtf doctor
+# 从 GitHub 安装
+uvx --from git+https://github.com/richardwild426/v2f.git vtf doctor
 
 # 或本地开发安装
-git clone https://github.com/OWNER/REPO.git vtf
+git clone https://github.com/richardwild426/v2f.git vtf
 cd vtf
 uv sync
 uv run vtf doctor
@@ -58,10 +58,10 @@ vtf doctor
 
 ```bash
 # uvx 一键安装
-uvx --from git+https://github.com/OWNER/REPO.git vtf --help
+uvx --from git+https://github.com/richardwild426/v2f.git vtf --help
 
 # 或 pip 安装
-pip install git+https://github.com/OWNER/REPO.git
+pip install git+https://github.com/richardwild426/v2f.git
 vtf --help
 ```
 
@@ -180,7 +180,7 @@ EOF
 
 ```bash
 # 克隆并安装开发依赖
-git clone https://github.com/OWNER/REPO.git vtf
+git clone https://github.com/richardwild426/v2f.git vtf
 cd vtf
 uv sync --extra dev
 

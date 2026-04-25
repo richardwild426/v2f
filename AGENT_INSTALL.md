@@ -6,14 +6,14 @@
 
 ```bash
 # 方式1: uvx（推荐，无需克隆）
-uvx --from git+https://github.com/OWNER/REPO.git vtf doctor
+uvx --from git+https://github.com/richardwild426/v2f.git vtf doctor
 
 # 方式2: pip
-pip install git+https://github.com/OWNER/REPO.git
+pip install git+https://github.com/richardwild426/v2f.git
 vtf doctor
 
 # 方式3: 本地克隆开发
-git clone https://github.com/OWNER/REPO.git vtf
+git clone https://github.com/richardwild426/v2f.git vtf
 cd vtf
 uv sync
 uv run vtf doctor
