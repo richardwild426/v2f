@@ -1,0 +1,96 @@
+# 「爆款制造机」字段 schema
+
+[[fields]]
+name = "对标素材链接"
+type = "text"
+source = "meta.url"
+
+[[fields]]
+name = "标题"
+type = "text"
+source = "meta.title"
+
+[[fields]]
+name = "作者名"
+type = "text"
+source = "meta.author"
+
+[[fields]]
+name = "文案提取"
+type = "text"
+source = "lines | joined"
+
+[[fields]]
+name = "二创改写"
+type = "text"
+source = "analyses.rewrite.text"
+
+[[fields]]
+name = "摘要"
+type = "text"
+source = "analyses.summary.text"
+
+[[fields]]
+name = "视频拆解"
+type = "text"
+source = "analyses.breakdown.text"
+
+[[fields]]
+name = "标签"
+type = "text"
+source = "analyses.summary.tags | tags_hashtag"
+
+[[fields]]
+name = "数据"
+type = "text"
+source = "meta | stats_compact"
+
+[[fields]]
+name = "视频时长"
+type = "text"
+source = "meta.duration_str"
+
+[[fields]]
+name = "播放数"
+type = "text"
+source = "meta.view"
+
+[[fields]]
+name = "点赞数"
+type = "text"
+source = "meta.like"
+
+[[fields]]
+name = "收藏数"
+type = "text"
+source = "meta.favorite"
+
+[[fields]]
+name = "分享数"
+type = "text"
+source = "meta.share"
+
+[[fields]]
+name = "评论数"
+type = "text"
+source = "meta.reply"
+
+[[fields]]
+name = "下载链接"
+type = "text"
+source = "meta.url"
+
+[[fields]]
+name = "封面链接"
+type = "text"
+source = "meta.thumbnail"
+
+[[fields]]
+name = "发布时间"
+type = "datetime"
+source = "meta.upload_date"
+
+[[fields]]
+name = "提取时间"
+type = "datetime"
+source = "meta.extract_time"
