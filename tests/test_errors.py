@@ -1,12 +1,14 @@
 from vtf.errors import (
-    EXIT_OK,
-    EXIT_USER,
-    EXIT_ENV,
-    EXIT_REMOTE,
     EXIT_BUG,
-    UserError,
-    EnvironmentError as VtfEnvError,
+    EXIT_ENV,
+    EXIT_OK,
+    EXIT_REMOTE,
+    EXIT_USER,
     RemoteError,
+    UserError,
+)
+from vtf.errors import (
+    EnvironmentError as VtfEnvError,
 )
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 from datetime import datetime
 from typing import Any
 
@@ -7,10 +8,8 @@ from typing import Any
 def _common_normalize(raw: dict[str, Any], *, platform: str) -> dict[str, Any]:
     upload_date = raw.get("upload_date", "") or ""
     if upload_date and len(upload_date) == 8:
-        try:
+        with contextlib.suppress(ValueError):
             upload_date = datetime.strptime(upload_date, "%Y%m%d").strftime("%Y-%m-%d %H:%M")
-        except ValueError:
-            pass
     duration = int(raw.get("duration") or 0)
     return {
         "platform": platform,

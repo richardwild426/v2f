@@ -1,4 +1,4 @@
-from vtf.config import Config, load_config
+from vtf.config import load_config
 
 
 def test_default_config_values():

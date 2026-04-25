@@ -133,10 +133,11 @@ def _merge_env(target: Any, env: dict[str, str], prefix: str = "VTF") -> None:
             raw = env[full]
             setattr(target, f.name, _coerce(raw, type(cur)))
     # legacy aliases
-    if prefix == "VTF" and "TABLE_TOKEN" in env:
-        target.sink.feishu.base_token = env["TABLE_TOKEN"]  # type: ignore[attr-defined]
-    if prefix == "VTF" and "TABLE_ID" in env:
-        target.sink.feishu.table_id = env["TABLE_ID"]  # type: ignore[attr-defined]
+    if prefix == "VTF":
+        if "TABLE_TOKEN" in env and hasattr(target, "sink"):
+            target.sink.feishu.base_token = env["TABLE_TOKEN"]
+        if "TABLE_ID" in env and hasattr(target, "sink"):
+            target.sink.feishu.table_id = env["TABLE_ID"]
 
 
 def _coerce(raw: str, target_type: type) -> Any:

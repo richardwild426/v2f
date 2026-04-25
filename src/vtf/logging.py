@@ -27,7 +27,7 @@ class Logger:
         if self._quiet and level == "info":
             return
         if self._json:
-            rec = {
+            rec: dict[str, Any] = {
                 "ts": datetime.now().isoformat(),
                 "level": level,
                 "msg": msg,

@@ -1,7 +1,6 @@
-import pytest
 
 from vtf.config import Config
-from vtf.platforms import detect, REGISTRY
+from vtf.platforms import REGISTRY, detect
 
 
 def test_detect_bilibili_long_url():

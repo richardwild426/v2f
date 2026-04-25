@@ -34,9 +34,7 @@ def merge_into_lines(sentences: list[str]) -> list[str]:
         if buf:
             if in_bracket:
                 split = False
-            elif buf[-1] in _ENDERS:
-                split = True
-            elif len(buf) > 15 and s[0] in _NEW_THOUGHT_FIRSTS:
+            elif buf[-1] in _ENDERS or len(buf) > 15 and s[0] in _NEW_THOUGHT_FIRSTS:
                 split = True
         if split:
             lines.append(buf)
