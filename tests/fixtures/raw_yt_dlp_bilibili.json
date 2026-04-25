@@ -1,0 +1,12 @@
+{
+  "id": "BV1xxx",
+  "webpage_url": "https://www.bilibili.com/video/BV1xxx",
+  "title": "测试视频",
+  "uploader": "测试UP",
+  "upload_date": "20260401",
+  "duration": 600,
+  "thumbnail": "https://i0.hdslb.com/x.jpg",
+  "description": "abc",
+  "view_count": 12345,
+  "like_count": 678
+}
