@@ -7,6 +7,27 @@
 
 专为智能体设计：CLI 驱动、JSON 输入输出、清晰的 agent 契约。
 
+本项目遵循 [Agent Skills](https://agentskills.io) 标准格式，详见 [`vtf/SKILL.md`](vtf/SKILL.md)。
+
+---
+
+## 项目结构
+
+```
+vtf/
+├── SKILL.md              # Agent Skills 标准格式（智能体指令）
+├── references/           # 详细文档
+│   ├── INSTALL.md        # 安装与自动配置
+│   ├── GUIDE.md          # 智能体使用指南
+│   └── data-shapes.md    # 流水线数据格式
+├── assets/               # 资源文件
+│   └── examples/         # 配置示例、schema
+└── scripts/              # 辅助脚本（可选）
+
+src/vtf/                  # Python CLI 包
+tests/                    # 测试文件
+```
+
 ---
 
 ## 快速开始
@@ -18,8 +39,8 @@
 uvx --from git+https://github.com/richardwild426/v2f.git vtf doctor
 
 # 或本地开发安装
-git clone https://github.com/richardwild426/v2f.git vtf
-cd vtf
+git clone https://github.com/richardwild426/v2f.git
+cd v2f
 uv sync
 uv run vtf doctor
 ```
@@ -34,7 +55,7 @@ vtf 需要以下外部工具（运行时检测，缺失会提示）：
 | **FunASR** | 语音转录 | 在某个 Python 环境中 `pip install funasr` |
 | **lark-cli** | 飞书表格写入（可选） | `pip install lark-cli` |
 
-> 💡 智能体提示：先运行 `vtf doctor` 检查环境，根据输出安装缺失依赖。
+> 💡 智能体提示：先运行 `vtf doctor` 检查环境，根据输出安装缺失依赖。详见 [`vtf/SKILL.md`](vtf/SKILL.md)。
 
 ### 3. 基本使用
 
@@ -54,60 +75,14 @@ vtf doctor
 
 ## 智能体集成
 
-### 安装命令
+本项目遵循 [Agent Skills](https://agentskills.io) 标准。
 
-```bash
-# uvx 一键安装
-uvx --from git+https://github.com/richardwild426/v2f.git vtf --help
+智能体加载 [`vtf/SKILL.md`](vtf/SKILL.md) 后可：
+- 自动安装配置 FunASR
+- 执行视频转录流水线
+- 处理 analyze 契约（调用 LLM）
 
-# 或 pip 安装
-pip install git+https://github.com/richardwild426/v2f.git
-vtf --help
-```
-
-### 命令清单
-
-| 命令 | 输入 | 输出 | 说明 |
-|------|------|------|------|
-| `vtf run <url>` | URL | markdown/飞书 | 端到端流水线 |
-| `vtf fetch <url>` | URL | meta.json | 获取视频元数据 |
-| `vtf download --meta m.json` | meta.json | audio.mp3 | 下载音频 |
-| `vtf transcribe <audio>` | audio.mp3 | transcript.json | FunASR 转录 |
-| `vtf merge` | transcript.json | lines.json | 合并句子碎片 |
-| `vtf analyze --kind X` | lines.json | analysis.json | 生成 LLM prompt |
-| `vtf assemble` | meta+lines+analyses | result.json | 拼装结果 |
-| `vtf emit --sink X` | result.json | stdout/飞书 | 输出结果 |
-| `vtf doctor` | 无 | 检查报告 | 环境自检 |
-
-### analyze 契约（智能体必须遵守）
-
-`vtf analyze --kind summary` 输出：
-
-```json
-{
-  "kind": "summary",
-  "prompt": "你是一个视频内容分析专家...",
-  "context": {"title": "...", "lines_count": 42},
-  "schema_hint": "expected: {text, points[], tags[]}",
-  "result": null
-}
-```
-
-**智能体职责**：
-1. 读取 `prompt` 字段，调用 LLM 执行
-2. 将结果填入 `result` 字段
-3. 传递给 `vtf assemble`
-
-```json
-{
-  "kind": "summary",
-  "result": {
-    "text": "一句话摘要",
-    "points": ["要点1", "要点2"],
-    "tags": ["#Tag1", "#Tag2"]
-  }
-}
-```
+详见 [`vtf/references/GUIDE.md`](vtf/references/GUIDE.md)。
 
 ---
 
@@ -129,11 +104,7 @@ export VTF_PLATFORM_BILIBILI_COOKIES_FROM_BROWSER="chrome"
 # 飞书表格配置（可选）
 export VTF_SINK_FEISHU_BASE_TOKEN="your_token"
 export VTF_SINK_FEISHU_TABLE_ID="your_table_id"
-export VTF_SINK_FEISHU_SCHEMA="examples/schemas/baokuan.toml"
-
-# Legacy 别名（兼容旧配置）
-export TABLE_TOKEN="your_token"
-export TABLE_ID="your_table_id"
+export VTF_SINK_FEISHU_SCHEMA="vtf/assets/examples/schemas/baokuan.toml"
 ```
 
 ### 配置文件
@@ -151,9 +122,6 @@ asr_model = "paraformer-zh"
 [platform.bilibili]
 cookies_from_browser = "chrome"
 EOF
-
-# 项目级配置（当前目录）
-./vtf.toml
 ```
 
 ---
@@ -170,9 +138,11 @@ EOF
 
 ## 详细文档
 
-- [AGENT_GUIDE.md](AGENT_GUIDE.md) - 智能体使用指南
-- [docs/data-shapes.md](docs/data-shapes.md) - 流水线数据格式
-- [examples/schemas/baokuan.toml](examples/schemas/baokuan.toml) - 飞书表格字段示例
+- [`vtf/SKILL.md`](vtf/SKILL.md) - Agent Skills 标准格式
+- [`vtf/references/INSTALL.md`](vtf/references/INSTALL.md) - 安装与自动配置
+- [`vtf/references/GUIDE.md`](vtf/references/GUIDE.md) - 智能体使用指南
+- [`vtf/references/data-shapes.md`](vtf/references/data-shapes.md) - 流水线数据格式
+- [`vtf/assets/examples/schemas/baokuan.toml`](vtf/assets/examples/schemas/baokuan.toml) - 飞书表格字段示例
 
 ---
 
@@ -180,8 +150,8 @@ EOF
 
 ```bash
 # 克隆并安装开发依赖
-git clone https://github.com/richardwild426/v2f.git vtf
-cd vtf
+git clone https://github.com/richardwild426/v2f.git
+cd v2f
 uv sync --extra dev
 
 # 运行测试

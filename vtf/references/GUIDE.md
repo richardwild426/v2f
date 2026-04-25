@@ -8,7 +8,7 @@
 
 **智能体应主动检测并配置 FunASR，不要让用户手动设置。**
 
-详见 [AGENT_INSTALL.md](AGENT_INSTALL.md) - 包含自动检测脚本和配置写入流程。
+详见 [INSTALL.md](INSTALL.md) - 包含自动检测脚本和配置写入流程。
 
 快速安装：
 
@@ -107,7 +107,7 @@ cat > ~/.config/vtf/config.toml << 'EOF'
 [sink.feishu]
 base_token = "your_token"
 table_id = "your_table_id"
-schema = "examples/schemas/baokuan.toml"
+schema = "vtf/assets/examples/schemas/baokuan.toml"
 EOF
 ```
 

@@ -153,7 +153,7 @@ cookies_from_browser = "chrome"
 [sink.feishu]  # 可选
 base_token = ""
 table_id = ""
-schema = "examples/schemas/baokuan.toml"
+schema = "vtf/assets/examples/schemas/baokuan.toml"
 ```
 
 ---
