@@ -59,16 +59,57 @@ vtf 需要以下外部工具（运行时检测，缺失会提示）：
 
 ### 3. 基本使用
 
+vtf 采用 **CLI 边界 = LLM 调用前一步** 的设计，不会自动调用 LLM。推荐分步执行，让智能体在 analyze 阶段接管。
+
 ```bash
-# 端到端流水线（默认输出 markdown）
-vtf run "https://www.bilibili.com/video/BV1xxx"
+# 分步流水线（推荐）
+mkdir -p ~/vtf-tasks/my-video && cd ~/vtf-tasks/my-video
 
-# 查看帮助
-vtf --help
-vtf run --help
+# 1. 抓取元数据
+vtf --workdir . fetch "https://www.bilibili.com/video/BV1xxx" > meta.json
 
-# 环境自检
-vtf doctor
+# 2. 下载音频
+AUDIO=$(vtf --workdir . download --meta meta.json)
+
+# 3. 转录
+vtf --workdir . transcribe "$AUDIO" > transcript.json
+
+# 4. 合并句子
+vtf --workdir . merge < transcript.json > lines.json
+
+# 5. 生成 LLM prompt（智能体接管点）
+vtf --workdir . analyze --meta meta.json --kind summary < lines.json > summary.json
+vtf --workdir . analyze --meta meta.json --kind breakdown < lines.json > breakdown.json
+vtf --workdir . analyze --meta meta.json --kind rewrite < lines.json > rewrite.json
+
+# 智能体：执行每个 *.json 的 prompt 字段，把结果填入 result 字段
+
+# 6. 装配
+vtf --workdir . assemble > result.json
+
+# 7. 输出
+vtf --workdir . emit < result.json > report.md
+```
+
+#### 快捷命令 `vtf run`
+
+`vtf run` 把第 1–5 步一口气跑完，产物写到工作目录后停下，由智能体填充 result：
+
+```bash
+mkdir -p ~/vtf-tasks/my-video && cd ~/vtf-tasks/my-video
+vtf --workdir . run "https://www.bilibili.com/video/BV1xxx"
+# stderr 会打印接下来的 assemble + emit 命令
+```
+
+**不要期待 vtf run 一条命令出报告** —— 它不会调用 LLM，也不会自动 assemble/emit。
+
+#### 常用命令
+
+```bash
+vtf --help                 # 查看帮助
+vtf doctor                 # 环境自检
+vtf run --help             # 查看快捷命令说明
+vtf assemble --help        # assemble 支持自动收集 workdir 内文件
 ```
 
 ---

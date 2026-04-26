@@ -21,19 +21,14 @@ type = "text"
 source = "lines | joined"
 
 [[fields]]
-name = "二创改写"
-type = "text"
-source = "analyses.rewrite.text"
-
-[[fields]]
 name = "摘要"
 type = "text"
 source = "analyses.summary.text"
 
 [[fields]]
-name = "视频拆解"
+name = "核心要点"
 type = "text"
-source = "analyses.breakdown.text"
+source = "analyses.summary.points | joined"
 
 [[fields]]
 name = "标签"
@@ -41,9 +36,49 @@ type = "text"
 source = "analyses.summary.tags | tags_hashtag"
 
 [[fields]]
-name = "数据"
+name = "开场钩子"
 type = "text"
-source = "meta | stats_compact"
+source = "analyses.breakdown.hook"
+
+[[fields]]
+name = "核心信息"
+type = "text"
+source = "analyses.breakdown.core"
+
+[[fields]]
+name = "行动召唤"
+type = "text"
+source = "analyses.breakdown.cta"
+
+[[fields]]
+name = "亮点"
+type = "text"
+source = "analyses.breakdown.pros | joined"
+
+[[fields]]
+name = "优化建议"
+type = "text"
+source = "analyses.breakdown.suggestions | joined"
+
+[[fields]]
+name = "视频拆解全文"
+type = "text"
+source = "analyses.breakdown.text"
+
+[[fields]]
+name = "二创改写"
+type = "text"
+source = "analyses.rewrite.text"
+
+[[fields]]
+name = "改写内核"
+type = "text"
+source = "analyses.rewrite._meta.thinking"
+
+[[fields]]
+name = "改写字数比值"
+type = "text"
+source = "analyses.rewrite._meta.比值"
 
 [[fields]]
 name = "视频时长"
@@ -74,6 +109,11 @@ source = "meta.share"
 name = "评论数"
 type = "text"
 source = "meta.reply"
+
+[[fields]]
+name = "数据汇总"
+type = "text"
+source = "meta | stats_compact"
 
 [[fields]]
 name = "下载链接"

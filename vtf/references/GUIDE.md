@@ -40,30 +40,39 @@ vtf doctor
 
 ---
 
-## 命令清单
+## 工作目录约定
 
-### 端到端
+不指定 `--workdir` 时产物落在 `~/.cache/vtf/`，cwd 看不到。**强制做法**：先建任务目录，cd 进去，所有命令加 `vtf --workdir .`。
 
 ```bash
-vtf run <url>                      # 用配置好的 sink
-vtf run <url> --sink markdown      # 临时切 sink
-vtf run <url> --skip rewrite       # 跳过某个 analyze kind
+mkdir -p ~/vtf-tasks/<video_id> && cd ~/vtf-tasks/<video_id>
 ```
 
-### 分步
+## 命令清单
+
+### 快捷端到端 `vtf run`（跑到 analyze 阶段停下）
 
 ```bash
-vtf fetch <url>                    -> meta.json
-vtf download --meta meta.json      -> audio path
-vtf transcribe <audio>             -> transcript.json
-vtf merge < transcript.json        -> lines.json
-vtf analyze --kind summary < lines.json   -> summary.json
-vtf analyze --kind breakdown < lines.json -> breakdown.json
-vtf analyze --kind rewrite < lines.json   -> rewrite.json
-vtf assemble --meta m.json --lines l.json --analysis a1.json ...
-                                   -> result.json
-vtf emit < result.json
-vtf emit --sink markdown < result.json
+vtf --workdir . run <url>             # 跑 fetch→download→transcribe→merge→analyze×3 后停下
+vtf --workdir . run <url> --skip rewrite  # 跳过某个 analyze kind
+```
+
+`vtf run` 不会调用 LLM、不会自动 assemble/emit。stderr 会打印接下来的命令样例。**不要期待 vtf run 一条命令出报告**——CLI 边界 = LLM 调用前一步。
+
+### 完整分步
+
+```bash
+vtf --workdir . fetch <url> > meta.json
+AUDIO=$(vtf --workdir . download --meta meta.json)
+vtf --workdir . transcribe "$AUDIO" > transcript.json
+vtf --workdir . merge < transcript.json > lines.json
+vtf --workdir . analyze --meta meta.json --kind summary < lines.json > summary.json
+vtf --workdir . analyze --meta meta.json --kind breakdown < lines.json > breakdown.json
+vtf --workdir . analyze --meta meta.json --kind rewrite < lines.json > rewrite.json
+# 智能体调 LLM 填充三个 *.json 的 result 字段（参考 prompt 字段）
+vtf --workdir . assemble --meta meta.json --lines lines.json \
+    --analysis summary.json --analysis breakdown.json --analysis rewrite.json > result.json
+vtf --workdir . emit < result.json > report.md
 ```
 
 ---
