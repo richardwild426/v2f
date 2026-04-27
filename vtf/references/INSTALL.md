@@ -124,12 +124,31 @@ pip install yt-dlp
 brew install yt-dlp
 ```
 
-### lark-cli（可选，飞书表格）
+### lark-cli（可选，飞书表格 — 机器人身份）
+
+vtf 默认以**飞书机器人**身份写入表格（`identity = "bot"`），不需要 OAuth 用户登录。智能体配置流程：
 
 ```bash
-pip install lark-cli
-lark-cli auth login
+# 1. 安装 lark-cli
+npm i -g @larksuite/lark-cli      # 或 pip install lark-cli（视分发方式）
+
+# 2. 绑定飞书应用（创建新机器人或填入已有 app 凭据）
+lark-cli config init --new
+# 命令会阻塞等待浏览器完成创建/授权；按提示拿到 app_id 与 app_secret 后回到终端粘贴
+
+# 3. 验证已绑定
+lark-cli config show          # 输出含 "appId": "cli_xxx" 即成功
 ```
+
+**关键步骤（机器人特有，容易漏）**：把机器人加为目标 base 的协作者：
+
+1. 浏览器打开目标 Bitable
+2. 右上角「···」→「更多」→「添加文档应用」
+3. 搜机器人名称 → 选中 → 授予「可编辑」权限
+
+不做这一步，写入会返回 `99991672 NoPermission`。
+
+**仍想用 OAuth 用户身份**：在 `~/.config/vtf/config.toml` 加 `[sink.feishu] identity = "user"`，然后 `lark-cli auth login`。
 
 ---
 
@@ -154,6 +173,7 @@ cookies_from_browser = "chrome"
 base_token = ""
 table_id = ""
 schema = "vtf/assets/examples/schemas/baokuan.toml"
+identity = "bot"  # bot=机器人身份（默认，需把 app 加为 base 协作者）；user=OAuth 用户身份
 ```
 
 ---
@@ -212,5 +232,6 @@ mise 管理的 Python 路径：`~/.local/share/mise/installs/python/3.*/bin/pyth
 | `VTF_OUTPUT_SINK` | output.sink | `markdown` / `feishu` |
 | `VTF_PLATFORM_BILIBILI_COOKIES_FROM_BROWSER` | platform.bilibili.cookies_from_browser | `chrome` |
 | `VTF_SINK_FEISHU_BASE_TOKEN` | sink.feishu.base_token | 飞书 token |
+| `VTF_SINK_FEISHU_IDENTITY` | sink.feishu.identity | `bot` / `user` |
 
 配置优先级：`环境变量 > 项目 vtf.toml > 用户 ~/.config/vtf/config.toml > 默认值`

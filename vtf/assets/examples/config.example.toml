@@ -44,6 +44,9 @@ table_id = ""
 schema = ""
 # lark-cli 命令名（可替换）
 lark_cli = "lark-cli"
+# 写入身份: "bot" (机器人，推荐) 或 "user" (OAuth 用户身份)
+# bot 模式下，机器人必须被加入目标 base 协作者并授予可编辑权限
+identity = "bot"
 
 [analyze.prompts]
 # 自定义 prompt 模板路径（留空使用内置模板）

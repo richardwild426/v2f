@@ -58,6 +58,7 @@ class SinkFeishu:
     table_id: str = ""
     schema: str = ""
     lark_cli: str = "lark-cli"
+    identity: str = "bot"
 
 
 @dataclass

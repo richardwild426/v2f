@@ -24,6 +24,8 @@ class Feishu:
             return (False, "缺少 table_id; 请运行 vtf init feishu")
         if not f.schema:
             return (False, "缺少 schema 文件路径; 请运行 vtf init feishu")
+        if f.identity not in ("bot", "user"):
+            return (False, f"sink.feishu.identity 取值非法: {f.identity!r}; 仅支持 bot 或 user")
         if not shutil.which("lark-cli"):
             return (False, "lark-cli 未找到; 参考 README 安装 lark-cli")
         return (True, "")
@@ -62,6 +64,8 @@ class Feishu:
             lark,
             "base",
             "+record-batch-create",
+            "--as",
+            f.identity,
             "--base-token",
             f.base_token,
             "--table-id",
@@ -82,12 +86,24 @@ class Feishu:
 
         if not resp.get("ok"):
             err = resp.get("error") or {}
-            msg = err.get("message") or proc.stdout[:300]
-            raise RemoteError(f"飞书 API 返回失败: {msg}")
+            msg = err.get("message") or err.get("msg") or proc.stdout[:300]
+            code = err.get("code")
+            hint = ""
+            if code == 99991672 or "NoPermission" in str(msg) or "Forbidden" in str(msg):
+                hint = (
+                    f"\n  → 修复：identity={f.identity} 对该 base 没有写权限。"
+                    "若 identity=bot，请把机器人加为 base 协作者并授予「可编辑」权限"
+                    "（base 右上角「···」→「更多」→「添加文档应用」）；"
+                    "若 identity=user，请确认登录用户对 base 有可编辑权限。"
+                )
+            raise RemoteError(f"飞书 API 返回失败 (code={code}): {msg}{hint}")
 
         record_id = ""
         data = resp.get("data") or {}
         records = data.get("records") or []
         if records:
             record_id = records[0].get("record_id", "")
-        return EmitOutcome(sink="feishu", reason=f"已写入飞书 (record_id: {record_id})")
+        return EmitOutcome(
+            sink="feishu",
+            reason=f"已写入飞书 (record_id: {record_id}, identity: {f.identity})",
+        )

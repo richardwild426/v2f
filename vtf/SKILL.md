@@ -43,6 +43,8 @@ vtf --workdir . fetch <url> > meta.json     # 后续每条命令同样加 --work
 
 > **assemble 简化用法**：`vtf --workdir . assemble` 会自动从 workdir 收集 meta.json、lines.json、{summary,breakdown,rewrite}.json。无需再写五个参数，除非你要覆盖默认路径。
 
+> **飞书 sink 前置（第 7 步走 feishu 才需要）**：智能体在跑 emit 之前必须确认已经完成 INSTALL.md 第 3 节的两件事：(a) `lark-cli config init --new` 绑定了飞书应用；(b) **目标 base 已添加该应用为协作者并授予可编辑权限**。否则 emit 会拿到 `99991672 NoPermission`。`vtf doctor` 在飞书未配置时会主动打印这段引导。
+
 ### 封面 URL 必须呈现给用户（关键）
 
 **不要下载封面图**。`fetch` 已经把封面 URL 写进 `meta.json.thumbnail`，这是**必须保留并呈现给用户的数据**。
@@ -189,7 +191,18 @@ cookies_from_browser = "chrome"
 base_token = ""
 table_id = ""
 schema = "vtf/assets/examples/schemas/baokuan.toml"
+identity = "bot"  # bot（默认）或 user
 ```
+
+### 飞书 sink 走机器人身份（默认）
+
+vtf 默认以**飞书机器人**身份调 lark-cli 写表格（`--as bot`）。智能体首次启用飞书 sink 时：
+
+1. 跑 `lark-cli config init --new` 创建/绑定飞书应用（无需 OAuth `auth login`）
+2. **在目标 Bitable 把机器人加为协作者并授予可编辑权限**（不做这步会拿到 `99991672 NoPermission`）
+3. `vtf doctor` 应输出 `lark-cli: ... (appId=cli_xxx, identity=bot)`
+
+如需切回 OAuth 用户身份：在 `[sink.feishu]` 设 `identity = "user"`，再跑 `lark-cli auth login`。
 
 ---
 
