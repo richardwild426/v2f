@@ -123,6 +123,12 @@ class Feishu:
                     "（base 右上角「···」→「更多」→「添加文档应用」）；"
                     "若 identity=user，请确认登录用户对 base 有可编辑权限。"
                 )
+            elif code == 1254045 or "字段名不存在" in str(msg) or "field name not found" in str(msg).lower():
+                hint = (
+                    "\n  → 修复：飞书表格里缺少 schema 中定义的字段。"
+                    "运行 `vtf init feishu` 自动补齐缺失字段；"
+                    "若是首次启用，运行 `vtf init feishu` 会按 schema 建好整张表。"
+                )
             raise RemoteError(f"飞书 API 返回失败 (code={code}): {msg}{hint}")
 
         data = resp.get("data") or {}

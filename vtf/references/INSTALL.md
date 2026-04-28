@@ -138,15 +138,27 @@ lark-cli config init --new
 
 # 3. 验证已绑定
 lark-cli config show          # 输出含 "appId": "cli_xxx" 即成功
+
+# 4. 让 vtf 自动建好 base + table + 全部字段并回写配置
+vtf init feishu
+# 输出形如：
+#   ✅ base_token = bascn...
+#      URL: https://feishu.cn/base/...
+#   ✅ table_id = tbl...
+#   ✅ 已写入 ~/.config/vtf/config.toml
+#
+#   ⚠️  下一步（必须人工完成）：把机器人加为 base 协作者并授予「可编辑」权限
 ```
 
-**关键步骤（机器人特有，容易漏）**：把机器人加为目标 base 的协作者：
+**最后人工步骤（飞书未开放该 OpenAPI）**：把机器人加为新 base 的协作者：
 
-1. 浏览器打开目标 Bitable
+1. 浏览器打开 `vtf init feishu` 输出的 base URL
 2. 右上角「···」→「更多」→「添加文档应用」
 3. 搜机器人名称 → 选中 → 授予「可编辑」权限
 
 不做这一步，写入会返回 `99991672 NoPermission`。
+
+**已有飞书表格但字段不全**：在 `~/.config/vtf/config.toml` 填好 `base_token` / `table_id`，再跑 `vtf init feishu`，会自动 `+field-list` 检查并补齐 `baokuan.toml` 中缺失的字段（追加在表末尾，可在飞书 UI 拖动调整顺序）。
 
 **仍想用 OAuth 用户身份**：在 `~/.config/vtf/config.toml` 加 `[sink.feishu] identity = "user"`，然后 `lark-cli auth login`。
 
