@@ -50,15 +50,40 @@ class Feishu:
 
         names: list[str] = []
         row: list[Any] = []
+        attachments: list[tuple[str, str]] = []  # [(field_name, file_path), ...]
+
         for fdef in fields_def:
             name = fdef.get("name", "")
             source = fdef.get("source", "")
             if not name or not source:
                 continue
+            ftype = fdef.get("type", "text")
+            if ftype == "attachment":
+                value = render_field(result, source)
+                # 附件字段不进入 batch_create payload，单独走 upload-attachment
+                if value:
+                    attachments.append((name, str(value)))
+                continue
             value = render_field(result, source)
             names.append(name)
             row.append(value if value is not None else "")
 
+        record_id = self._batch_create(lark, f, names, row)
+
+        attachment_msgs: list[str] = []
+        for field_name, file_path_str in attachments:
+            attachment_msgs.append(
+                self._upload_attachment(lark, f, record_id, field_name, file_path_str)
+            )
+
+        reason = f"已写入飞书 (record_id: {record_id}, identity: {f.identity})"
+        if attachment_msgs:
+            reason += "; 附件: " + ", ".join(attachment_msgs)
+        return EmitOutcome(sink="feishu", reason=reason)
+
+    def _batch_create(
+        self, lark: str, f: Any, names: list[str], row: list[Any]
+    ) -> str:
         payload = {"fields": names, "rows": [row]}
         cmd = [
             lark,
@@ -82,7 +107,9 @@ class Feishu:
         try:
             resp = json.loads(proc.stdout)
         except json.JSONDecodeError:
-            return EmitOutcome(sink="feishu", reason=proc.stdout.strip()[:300])
+            raise RemoteError(
+                f"lark-cli 输出非 JSON: {proc.stdout.strip()[:300]}"
+            ) from None
 
         if not resp.get("ok"):
             err = resp.get("error") or {}
@@ -98,12 +125,60 @@ class Feishu:
                 )
             raise RemoteError(f"飞书 API 返回失败 (code={code}): {msg}{hint}")
 
-        record_id = ""
         data = resp.get("data") or {}
         records = data.get("records") or []
-        if records:
-            record_id = records[0].get("record_id", "")
-        return EmitOutcome(
-            sink="feishu",
-            reason=f"已写入飞书 (record_id: {record_id}, identity: {f.identity})",
-        )
+        if not records:
+            raise RemoteError("飞书 API 未返回 record_id，无法继续上传附件")
+        return records[0].get("record_id", "")
+
+    # 飞书附件单文件上限 2GB；留 100MB 余量避免临界报错
+    _ATTACHMENT_MAX_BYTES = 1900 * 1024 * 1024
+
+    def _upload_attachment(
+        self, lark: str, f: Any, record_id: str, field_name: str, file_path_str: str
+    ) -> str:
+        path = Path(file_path_str).expanduser()
+        if not path.exists():
+            return f"{field_name}=跳过(文件不存在: {path})"
+        size = path.stat().st_size
+        if size == 0:
+            return f"{field_name}=跳过(空文件)"
+        if size > self._ATTACHMENT_MAX_BYTES:
+            mb = size // (1024 * 1024)
+            return (
+                f"{field_name}=跳过({mb}MB 超过 1900MB 上限；如需上传请压缩或截断后手动添加)"
+            )
+
+        cmd = [
+            lark,
+            "base",
+            "+record-upload-attachment",
+            "--as",
+            f.identity,
+            "--base-token",
+            f.base_token,
+            "--table-id",
+            f.table_id,
+            "--record-id",
+            record_id,
+            "--field-id",
+            field_name,
+            "--file",
+            str(path),
+        ]
+        # 大文件可能耗时较久；timeout 给到 30 分钟
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+        if proc.returncode != 0:
+            return (
+                f"{field_name}=失败({proc.returncode}: "
+                f"{proc.stderr.strip()[:160]})"
+            )
+        try:
+            resp = json.loads(proc.stdout)
+        except json.JSONDecodeError:
+            return f"{field_name}=失败(非 JSON 响应)"
+        if not resp.get("ok"):
+            err = resp.get("error") or {}
+            return f"{field_name}=失败({err.get('message') or err.get('msg') or 'unknown'})"
+        mb = size // (1024 * 1024)
+        return f"{field_name}=已上传({mb}MB)"

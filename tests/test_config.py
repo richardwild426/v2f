@@ -15,7 +15,6 @@ def test_default_config_values():
     assert cfg.download.retries == 3
     assert cfg.sink.feishu.lark_cli == "lark-cli"
     assert cfg.sink.feishu.identity == "bot"
-    assert cfg.sink.feishu.identity == "bot"
 
 
 def test_project_overrides_user(tmp_path):

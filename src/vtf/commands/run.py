@@ -42,7 +42,13 @@ def cmd(ctx: click.Context, url: str, skips: tuple[str, ...]) -> None:
         meta_path.write_text(json.dumps(meta, ensure_ascii=False), "utf-8")
 
         log.info("download", step="run")
-        audio = download(meta=meta, cfg=cfg, workdir=workdir)
+        keep_video = cfg.output.sink == "feishu"
+        audio, video_path = download(
+            meta=meta, cfg=cfg, workdir=workdir, keep_video=keep_video
+        )
+        if video_path is not None:
+            meta["video_path"] = str(video_path)
+            meta_path.write_text(json.dumps(meta, ensure_ascii=False), "utf-8")
 
         log.info("transcribe", step="run")
         transcript = transcribe(audio_path=audio, cfg=cfg)

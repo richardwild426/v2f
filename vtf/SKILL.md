@@ -34,7 +34,7 @@ vtf --workdir . fetch <url> > meta.json     # 后续每条命令同样加 --work
 | # | 步骤 | 命令 | 产物（落到 cwd） | 验证条件 |
 |---|------|------|------------------|----------|
 | 1 | **fetch** | `vtf --workdir . fetch <url> > meta.json` | `meta.json` | `meta.json.title` 非空，**`meta.json.thumbnail` 是封面 URL，必须保留** |
-| 2 | **download** | `AUDIO=$(vtf --workdir . download --meta meta.json)` | `<video_id>.mp3` 等，路径回到 `$AUDIO` 变量 | `$AUDIO` 文件存在且 `size > 0` |
+| 2 | **download** | `AUDIO=$(vtf --workdir . download --meta meta.json)` | `<video_id>.mp3` 等，路径回到 `$AUDIO` 变量；若 `output.sink = "feishu"`，**同时下原视频** `<video_id>.mp4` 并把路径回填到 `meta.json.video_path`（用于附件） | `$AUDIO` 文件存在且 `size > 0`；feishu sink 时 `meta.json.video_path` 也应非空 |
 | 3 | **transcribe** | `vtf --workdir . transcribe "$AUDIO" > transcript.json` | `transcript.json` | `sentences` 数组长度 ≥ 1 |
 | 4 | **merge** | `vtf --workdir . merge < transcript.json > lines.json` | `lines.json` | `lines` 数组长度 ≥ 1 |
 | 5 | **analyze ×3** | `vtf --workdir . analyze --meta meta.json --kind {summary,breakdown,rewrite} < lines.json > <kind>.json` | `summary.json` `breakdown.json` `rewrite.json` | 三个文件的 `result` 字段**全部**非 null |
@@ -44,6 +44,8 @@ vtf --workdir . fetch <url> > meta.json     # 后续每条命令同样加 --work
 > **assemble 简化用法**：`vtf --workdir . assemble` 会自动从 workdir 收集 meta.json、lines.json、{summary,breakdown,rewrite}.json。无需再写五个参数，除非你要覆盖默认路径。
 
 > **飞书 sink 前置（第 7 步走 feishu 才需要）**：智能体在跑 emit 之前必须确认已经完成 INSTALL.md 第 3 节的两件事：(a) `lark-cli config init --new` 绑定了飞书应用；(b) **目标 base 已添加该应用为协作者并授予可编辑权限**。否则 emit 会拿到 `99991672 NoPermission`。`vtf doctor` 在飞书未配置时会主动打印这段引导。
+>
+> **飞书 sink 的「原始素材」附件**：`baokuan.toml` 默认 schema 包含 `原始素材` 附件字段（type=attachment，source=meta.video_path），位于「对标素材链接」之后。第 2 步 download 会自动保留原视频文件；第 7 步 emit 先 batch_create 写其它字段，再调 `+record-upload-attachment` 把视频上传到附件字段。**飞书表格里必须先存在「原始素材」附件列**（首次启用时手动加，类型选「附件」），否则 emit 会失败。视频 > 1900MB 自动跳过附件并告警，其它字段仍正常写入。
 
 ### 封面 URL 必须呈现给用户（关键）
 

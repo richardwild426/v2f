@@ -108,6 +108,7 @@ def cmd(ctx: click.Context) -> None:
         click.echo("  2. 把机器人加为目标 Bitable 协作者并授予「可编辑」权限：")
         click.echo("       浏览器打开 base → 「···」→「更多」→「添加文档应用」→ 搜机器人名 → 可编辑")
         click.echo("     不做这步会拿到 99991672 NoPermission")
+        click.echo("     另外：在飞书表格里按 baokuan.toml 加好对应字段（含「原始素材」附件字段，位于「对标素材链接」之后）")
         click.echo("  3. 在 ~/.config/vtf/config.toml 填入目标表格：")
         click.echo("       [output]")
         click.echo('       sink = "feishu"')
