@@ -117,7 +117,7 @@ def cmd(ctx: click.Context) -> None:
         click.echo("\n=== 修复建议 ===")
         for i in issues:
             click.echo(f"  - {i}")
-        click.echo("\n参考: AGENT_INSTALL.md 或 README.md")
+        click.echo("\n参考: references/installation.md")
         raise SystemExit(2)
 
     click.echo("\n✅ 环境检查通过，可以正常使用")
