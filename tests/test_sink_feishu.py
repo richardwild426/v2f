@@ -6,8 +6,12 @@ from unittest.mock import patch
 import pytest
 
 from vtf.config import Config
-from vtf.errors import RemoteError
+from vtf.errors import RemoteError, UserError
 from vtf.sinks.feishu import Feishu
+
+
+def _meta(**extra):
+    return {"title": "Hi", "thumbnail": "https://example.com/cover.jpg", **extra}
 
 
 def _configured_cfg(tmp_path, identity: str = "bot") -> Config:
@@ -54,9 +58,21 @@ def test_feishu_rejects_invalid_identity():
     assert "identity" in reason
 
 
+def test_feishu_available_respects_lark_cli_override():
+    cfg = Config()
+    cfg.sink.feishu.base_token = "tok"
+    cfg.sink.feishu.table_id = "tbl"
+    cfg.sink.feishu.schema = "schema.toml"
+    cfg.sink.feishu.lark_cli = "/custom/lark-cli"
+    f = Feishu()
+    ok, reason = f.available(cfg)
+    assert ok
+
+
 def test_emit_passes_as_bot_to_lark_cli(tmp_path):
     cfg = _configured_cfg(tmp_path, identity="bot")
-    result = {"meta": {"title": "Hello"}}
+    cfg.sink.feishu.lark_cli = "/fake/lark-cli"
+    result = {"meta": _meta(title="Hello")}
     fake = subprocess.CompletedProcess(
         args=[],
         returncode=0,
@@ -65,7 +81,7 @@ def test_emit_passes_as_bot_to_lark_cli(tmp_path):
         ),
         stderr="",
     )
-    with patch("vtf.sinks.feishu.shutil.which", return_value="/fake/lark-cli"), patch(
+    with patch(
         "vtf.sinks.feishu.subprocess.run", return_value=fake
     ) as run_mock:
         outcome = Feishu().emit(result, cfg)
@@ -79,6 +95,7 @@ def test_emit_passes_as_bot_to_lark_cli(tmp_path):
 
 def test_emit_no_permission_error_includes_collaborator_hint(tmp_path):
     cfg = _configured_cfg(tmp_path, identity="bot")
+    cfg.sink.feishu.lark_cli = "/fake/lark-cli"
     fake = subprocess.CompletedProcess(
         args=[],
         returncode=0,
@@ -90,11 +107,11 @@ def test_emit_no_permission_error_includes_collaborator_hint(tmp_path):
         ),
         stderr="",
     )
-    with patch("vtf.sinks.feishu.shutil.which", return_value="/fake/lark-cli"), patch(
-        "vtf.sinks.feishu.subprocess.run", return_value=fake
+    with (
+        patch("vtf.sinks.feishu.subprocess.run", return_value=fake),
+        pytest.raises(RemoteError) as exc,
     ):
-        with pytest.raises(RemoteError) as exc:
-            Feishu().emit({"meta": {"title": "x"}}, cfg)
+        Feishu().emit({"meta": _meta(title="x")}, cfg)
 
     msg = str(exc.value)
     assert "99991672" in msg
@@ -103,20 +120,28 @@ def test_emit_no_permission_error_includes_collaborator_hint(tmp_path):
 
 def test_emit_passes_as_user_when_identity_user(tmp_path):
     cfg = _configured_cfg(tmp_path, identity="user")
-    result = {"meta": {"title": "Hi"}}
+    cfg.sink.feishu.lark_cli = "/fake/lark-cli"
+    result = {"meta": _meta()}
     fake = subprocess.CompletedProcess(
         args=[],
         returncode=0,
         stdout=json.dumps({"ok": True, "data": {"records": [{"record_id": "r1"}]}}),
         stderr="",
     )
-    with patch("vtf.sinks.feishu.shutil.which", return_value="/fake/lark-cli"), patch(
+    with patch(
         "vtf.sinks.feishu.subprocess.run", return_value=fake
     ) as run_mock:
         Feishu().emit(result, cfg)
 
     cmd = run_mock.call_args.args[0]
     assert cmd[cmd.index("--as") + 1] == "user"
+
+
+def test_emit_rejects_missing_thumbnail(tmp_path):
+    cfg = _configured_cfg(tmp_path)
+    cfg.sink.feishu.lark_cli = "/fake/lark-cli"
+    with pytest.raises(UserError, match="thumbnail"):
+        Feishu().emit({"meta": {"title": "Hi"}}, cfg)
 
 
 def _attachment_cfg(tmp_path) -> Config:
@@ -136,9 +161,10 @@ def _attachment_cfg(tmp_path) -> Config:
 
 def test_attachment_field_excluded_from_batch_create_and_uploaded(tmp_path):
     cfg = _attachment_cfg(tmp_path)
+    cfg.sink.feishu.lark_cli = "/fake/lark-cli"
     video = tmp_path / "v.mp4"
     video.write_bytes(b"\x00" * 1024)
-    result = {"meta": {"title": "Hi", "video_path": str(video)}}
+    result = {"meta": _meta(video_path=str(video))}
 
     create_resp = subprocess.CompletedProcess(
         args=[],
@@ -152,7 +178,7 @@ def test_attachment_field_excluded_from_batch_create_and_uploaded(tmp_path):
         args=[], returncode=0, stdout=json.dumps({"ok": True}), stderr=""
     )
 
-    with patch("vtf.sinks.feishu.shutil.which", return_value="/fake/lark-cli"), patch(
+    with patch(
         "vtf.sinks.feishu.subprocess.run", side_effect=[create_resp, upload_resp]
     ) as run_mock:
         outcome = Feishu().emit(result, cfg)
@@ -173,7 +199,8 @@ def test_attachment_field_excluded_from_batch_create_and_uploaded(tmp_path):
 
 def test_attachment_skipped_when_file_missing(tmp_path):
     cfg = _attachment_cfg(tmp_path)
-    result = {"meta": {"title": "Hi", "video_path": str(tmp_path / "missing.mp4")}}
+    cfg.sink.feishu.lark_cli = "/fake/lark-cli"
+    result = {"meta": _meta(video_path=str(tmp_path / "missing.mp4"))}
 
     create_resp = subprocess.CompletedProcess(
         args=[],
@@ -184,12 +211,11 @@ def test_attachment_skipped_when_file_missing(tmp_path):
         stderr="",
     )
 
-    with patch("vtf.sinks.feishu.shutil.which", return_value="/fake/lark-cli"), patch(
+    with patch(
         "vtf.sinks.feishu.subprocess.run", side_effect=[create_resp]
     ) as run_mock:
         outcome = Feishu().emit(result, cfg)
 
-    # 只调一次 batch-create，没调 upload-attachment
     assert len(run_mock.call_args_list) == 1
     assert "跳过" in outcome.reason
     assert "文件不存在" in outcome.reason
@@ -197,9 +223,9 @@ def test_attachment_skipped_when_file_missing(tmp_path):
 
 def test_attachment_skipped_when_oversize(tmp_path):
     cfg = _attachment_cfg(tmp_path)
+    cfg.sink.feishu.lark_cli = "/fake/lark-cli"
     big = tmp_path / "big.mp4"
     big.touch()
-    # 通过 stat 拦截绕过实际写 2GB
     create_resp = subprocess.CompletedProcess(
         args=[],
         returncode=0,
@@ -208,14 +234,17 @@ def test_attachment_skipped_when_oversize(tmp_path):
         ),
         stderr="",
     )
-    result = {"meta": {"title": "Hi", "video_path": str(big)}}
+    result = {"meta": _meta(video_path=str(big))}
 
     class FakeStat:
         st_size = 2 * 1024 * 1024 * 1024  # 2GB
 
-    with patch("vtf.sinks.feishu.shutil.which", return_value="/fake/lark-cli"), patch(
-        "vtf.sinks.feishu.subprocess.run", side_effect=[create_resp]
-    ) as run_mock, patch.object(Path, "stat", return_value=FakeStat()):
+    with (
+        patch(
+            "vtf.sinks.feishu.subprocess.run", side_effect=[create_resp]
+        ) as run_mock,
+        patch.object(Path, "stat", return_value=FakeStat()),
+    ):
         outcome = Feishu().emit(result, cfg)
 
     assert len(run_mock.call_args_list) == 1
@@ -226,7 +255,8 @@ def test_attachment_skipped_when_oversize(tmp_path):
 def test_attachment_skipped_when_source_empty(tmp_path):
     """meta.video_path 不存在时，附件字段直接被忽略，仅写 batch_create。"""
     cfg = _attachment_cfg(tmp_path)
-    result = {"meta": {"title": "Hi"}}  # 没有 video_path
+    cfg.sink.feishu.lark_cli = "/fake/lark-cli"
+    result = {"meta": _meta()}
     create_resp = subprocess.CompletedProcess(
         args=[],
         returncode=0,
@@ -235,11 +265,11 @@ def test_attachment_skipped_when_source_empty(tmp_path):
         ),
         stderr="",
     )
-    with patch("vtf.sinks.feishu.shutil.which", return_value="/fake/lark-cli"), patch(
+    with patch(
         "vtf.sinks.feishu.subprocess.run", side_effect=[create_resp]
     ) as run_mock:
         outcome = Feishu().emit(result, cfg)
 
     assert len(run_mock.call_args_list) == 1
     assert "rec_w" in outcome.reason
-    assert "附件" not in outcome.reason  # 没有 attachments 时不带附件段
+    assert "附件" not in outcome.reason

@@ -24,11 +24,7 @@ def cmd(ctx: click.Context, meta_path: Path, keep_video_flag: bool | None) -> No
     log = get_logger(ctx)
     meta = json.loads(meta_path.read_text("utf-8"))
 
-    # 决定是否保留视频：显式 flag > 自动（sink == feishu）
-    if keep_video_flag is None:
-        keep_video = cfg.output.sink == "feishu"
-    else:
-        keep_video = keep_video_flag
+    keep_video = cfg.output.sink == "feishu" if keep_video_flag is None else keep_video_flag
 
     try:
         audio_path, video_path = download(

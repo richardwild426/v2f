@@ -54,6 +54,8 @@ breakdown = ""
 rewrite = ""
 ```
 
+`sink.feishu.schema` 可写绝对路径；相对路径优先按配置文件目录解析，找不到时回退到随包附带的 `vtf/assets` 目录。
+
 ## 环境变量映射
 
 | 环境变量 | 配置项 | 类型 |

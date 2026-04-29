@@ -22,15 +22,8 @@ _ALL_KINDS = ["summary", "breakdown", "rewrite"]
     "填充 result 字段后用 vtf assemble + vtf emit 收尾。",
 )
 @click.argument("url")
-@click.option(
-    "--skip",
-    "skips",
-    multiple=True,
-    type=click.Choice(_ALL_KINDS),
-    help="跳过某个 analyze kind(可重复)",
-)
 @click.pass_context
-def cmd(ctx: click.Context, url: str, skips: tuple[str, ...]) -> None:
+def cmd(ctx: click.Context, url: str) -> None:
     cfg = get_config(ctx)
     log = get_logger(ctx)
     workdir = get_workdir(ctx)
@@ -63,8 +56,6 @@ def cmd(ctx: click.Context, url: str, skips: tuple[str, ...]) -> None:
 
         analyses_paths: list[str] = []
         for kind in _ALL_KINDS:
-            if kind in skips:
-                continue
             log.info(f"analyze {kind}", step="run")
             a: dict[str, Any] = analyze(kind=kind, meta=meta, lines=lines, cfg=cfg)
             p = workdir / f"{kind}.json"
@@ -76,12 +67,12 @@ def cmd(ctx: click.Context, url: str, skips: tuple[str, ...]) -> None:
 
     click.echo(f"工作目录: {workdir}", err=True)
     click.echo("流水线已跑到 analyze 阶段，请填充以下文件的 result 字段:", err=True)
-    for p in analyses_paths:
-        click.echo(f"  - {p}", err=True)
+    for ap in analyses_paths:
+        click.echo(f"  - {ap}", err=True)
     click.echo("\n填充完毕后用以下命令收尾:", err=True)
     cmd_lines = [
         f"  vtf assemble --meta {meta_path} --lines {lines_path} \\",
-        *[f"    --analysis {p} \\" for p in analyses_paths],
+        *[f"    --analysis {ap} \\" for ap in analyses_paths],
         f"    > {workdir}/result.json",
         f"  vtf emit < {workdir}/result.json",
     ]

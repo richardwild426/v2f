@@ -40,8 +40,8 @@ template = ""
 # 飞书表格配置（通过环境变量或直接填写）
 base_token = ""
 table_id = ""
-# 字段 schema 文件路径
-schema = ""
+# 字段 schema 文件路径；相对路径优先解析到随包附带的 vtf/assets 目录
+schema = "assets/schemas/baokuan.toml"
 # lark-cli 命令名（可替换）
 lark_cli = "lark-cli"
 # 写入身份: "bot" (机器人，推荐) 或 "user" (OAuth 用户身份)

@@ -6,6 +6,23 @@ set -euo pipefail
 echo "=== vtf 一键安装 ==="
 echo ""
 
+_try_python() {
+    # $1 is a literal filesystem path or a command name in PATH.
+    # For command names (no "/"), use "command -v" to locate.
+    # For filesystem paths, use [ -x ] to check.
+    local candidate="$1"
+    case "$candidate" in
+        */*)
+            [ -x "$candidate" ] && "$candidate" -c "import funasr" 2>/dev/null
+            ;;
+        *)
+            local resolved
+            resolved="$(command -v "$candidate" 2>/dev/null || true)"
+            [ -n "$resolved" ] && [ -x "$resolved" ] && "$resolved" -c "import funasr" 2>/dev/null
+            ;;
+    esac
+}
+
 # ---- yt-dlp ----
 if command -v yt-dlp &>/dev/null; then
     echo "✅ yt-dlp: $(yt-dlp --version 2>&1 | head -1)"
@@ -24,10 +41,29 @@ else
     echo "✅ yt-dlp 安装完成"
 fi
 
+# ---- vtf CLI ----
+if command -v vtf &>/dev/null; then
+    echo "✅ vtf: $(command -v vtf)"
+else
+    echo "📦 安装 vtf..."
+    if command -v uv &>/dev/null; then
+        uv tool install --from git+https://github.com/richardwild426/v2f.git vtf
+    elif command -v pip &>/dev/null; then
+        pip install "git+https://github.com/richardwild426/v2f.git"
+    elif command -v pip3 &>/dev/null; then
+        pip3 install "git+https://github.com/richardwild426/v2f.git"
+    else
+        echo "❌ 无法自动安装 vtf（需要 uv 或 pip），请手动安装:"
+        echo "   uvx --from git+https://github.com/richardwild426/v2f.git vtf doctor"
+        exit 1
+    fi
+    echo "✅ vtf 安装完成"
+fi
+
 # ---- FunASR ----
 FUNASR_PY=""
 for py in "$HOME/.venv/funasr/bin/python" python3 python; do
-    if [ -x "$py" ] && "$py" -c "import funasr" 2>/dev/null; then
+    if _try_python "$py"; then
         FUNASR_PY="$py"
         break
     fi
@@ -75,7 +111,7 @@ retries = 3
 [sink.feishu]
 base_token = ""
 table_id = ""
-schema = ""
+schema = "assets/schemas/baokuan.toml"
 lark_cli = "lark-cli"
 identity = "bot"
 EOF
@@ -85,11 +121,7 @@ fi
 # ---- 验证 ----
 echo ""
 echo "=== 环境验证 ==="
-if command -v vtf &>/dev/null; then
-    vtf doctor
-else
-    echo "⚠️  vtf 命令未找到，请先安装: uvx --from git+https://github.com/richardwild426/v2f.git vtf doctor"
-fi
+vtf doctor
 
 echo ""
 echo "=== 安装完成 ==="

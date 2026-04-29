@@ -45,7 +45,10 @@ def cmd(
 
     for p, label in [(meta_path, "meta.json"), (lines_path, "lines.json")]:
         if not p.exists():
-            raise UserError(f"找不到 {label}: {p}（用 --workdir 指定目录或显式 --{label.split('.')[0]}）")
+            raise UserError(
+                f"找不到 {label}: {p}"
+                f"（用 --workdir 指定目录或显式 --{label.split('.')[0]}）"
+            )
     if not analysis_paths:
         raise UserError(
             f"未找到任何 analysis 文件（{', '.join(f'{k}.json' for k in _AUTO_KINDS)} "

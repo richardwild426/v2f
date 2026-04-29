@@ -131,7 +131,7 @@ vtf --workdir . run <url>
 
 `vtf run` 不调用 LLM，不会自动收尾。**不要期待一条命令出报告**。
 
-仅当用户显式要求时使用 `vtf run <url> --skip rewrite`。
+`--skip` 已停用。完整流程必须同时生成 summary、breakdown、rewrite 三个 analyze 文件。
 
 ## 完成定义
 

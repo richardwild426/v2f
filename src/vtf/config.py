@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import os
+import shutil
 import tomllib
 from dataclasses import dataclass, field, fields, is_dataclass
 from pathlib import Path
 from typing import Any
+
+DEFAULT_FEISHU_SCHEMA = "assets/schemas/baokuan.toml"
 
 
 @dataclass
@@ -56,7 +59,7 @@ class SinkMarkdown:
 class SinkFeishu:
     base_token: str = ""
     table_id: str = ""
-    schema: str = ""
+    schema: str = DEFAULT_FEISHU_SCHEMA
     lark_cli: str = "lark-cli"
     identity: str = "bot"
 
@@ -98,10 +101,16 @@ def load_config(
 ) -> Config:
     cfg = Config()
     if user_path and user_path.exists():
-        _merge_dict(cfg, _read_toml(user_path))
+        user_data = _read_toml(user_path)
+        _merge_dict(cfg, user_data)
+        _set_schema_config_dir(cfg, user_data, user_path.parent)
     if project_path and project_path.exists():
-        _merge_dict(cfg, _read_toml(project_path))
+        project_data = _read_toml(project_path)
+        _merge_dict(cfg, project_data)
+        _set_schema_config_dir(cfg, project_data, project_path.parent)
     _merge_env(cfg, env)
+    if "VTF_SINK_FEISHU_SCHEMA" in env:
+        _clear_schema_config_dir(cfg)
     _merge_dict(cfg, overrides)
     return cfg
 
@@ -120,6 +129,30 @@ def _merge_dict(target: Any, src: dict[str, Any]) -> None:
             _merge_dict(cur, v)
         else:
             setattr(target, k, v)
+
+
+_SCHEMA_CONFIG_DIR_ATTR = "_vtf_schema_config_dir"
+
+
+def _set_schema_config_dir(cfg: Config, src: dict[str, Any], config_dir: Path) -> None:
+    feishu = (src.get("sink") or {}).get("feishu") or {}
+    raw_schema = feishu.get("schema")
+    if isinstance(raw_schema, str) and raw_schema:
+        p = Path(raw_schema).expanduser()
+        if p.is_absolute():
+            _clear_schema_config_dir(cfg)
+        else:
+            setattr(cfg.sink.feishu, _SCHEMA_CONFIG_DIR_ATTR, config_dir)
+
+
+def _clear_schema_config_dir(cfg: Config) -> None:
+    if hasattr(cfg.sink.feishu, _SCHEMA_CONFIG_DIR_ATTR):
+        delattr(cfg.sink.feishu, _SCHEMA_CONFIG_DIR_ATTR)
+
+
+def _schema_config_dir(cfg: Config) -> Path | None:
+    value = getattr(cfg.sink.feishu, _SCHEMA_CONFIG_DIR_ATTR, None)
+    return value if isinstance(value, Path) else None
 
 
 def _merge_env(target: Any, env: dict[str, str], prefix: str = "VTF") -> None:
@@ -161,3 +194,47 @@ def default_workdir() -> Path:
     if base:
         return Path(base) / "vtf"
     return Path.home() / ".cache" / "vtf"
+
+
+def resolve_lark_cli(cfg: Config) -> str | None:
+    """Return the lark-cli executable path from config, falling back to PATH lookup."""
+    configured = cfg.sink.feishu.lark_cli
+    if configured and "/" in configured:
+        return configured
+    if configured:
+        resolved = shutil.which(configured)
+        if resolved:
+            return resolved
+    return shutil.which("lark-cli")
+
+
+def resolve_schema_path(raw: str, *, config_dir: Path | None = None) -> Path:
+    """Resolve a schema path.
+
+    Absolute paths and ~ paths are used as-is (after expanduser).
+    Relative paths resolve from *config_dir* if given,
+    otherwise from the vtf package directory (so shipped assets work).
+    """
+    p = Path(raw).expanduser()
+    if p.is_absolute():
+        return p
+
+    candidates: list[Path] = []
+    if config_dir is not None:
+        candidates.append(config_dir / p)
+
+    package_root = Path(__file__).parent
+    candidates.extend(
+        [
+            package_root / p,
+        ]
+    )
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved.exists():
+            return resolved
+    return (package_root / p).resolve()
+
+
+def resolve_feishu_schema_path(cfg: Config, raw: str | None = None) -> Path:
+    return resolve_schema_path(raw or cfg.sink.feishu.schema, config_dir=_schema_config_dir(cfg))

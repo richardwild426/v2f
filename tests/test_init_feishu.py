@@ -12,7 +12,6 @@ from click.testing import CliRunner
 
 from vtf.cli import main
 
-
 # ----- 通用 fixtures -----------------------------------------------------------
 
 
@@ -69,7 +68,7 @@ def test_init_feishu_creates_base_and_table_with_all_fields(
     )
 
     with patch(
-        "vtf.commands.init.shutil.which", return_value="/fake/lark-cli"
+        "vtf.config.shutil.which", return_value="/fake/lark-cli"
     ), patch(
         "vtf.commands.init.subprocess.run",
         side_effect=[config_show, base_create, table_create],
@@ -104,13 +103,51 @@ def test_init_feishu_creates_base_and_table_with_all_fields(
     assert 'sink = "feishu"' in content
 
 
+def test_init_feishu_uses_default_packaged_schema(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+
+    config_show = _config_show_ok()
+    base_create = _ok({"ok": True, "data": {"base": {"token": "bascnNEW"}}})
+    table_create = _ok({"ok": True, "data": {"table": {"table_id": "tblNEW"}}})
+
+    with (
+        patch("vtf.config.shutil.which", return_value="/fake/lark-cli"),
+        patch(
+            "vtf.commands.init.subprocess.run",
+            side_effect=[config_show, base_create, table_create],
+        ) as run_mock,
+    ):
+        result = CliRunner().invoke(main, ["init", "feishu"])
+
+    assert result.exit_code == 0, result.output
+    table_args = run_mock.call_args_list[2].args[0]
+    fields_payload = json.loads(table_args[table_args.index("--fields") + 1])
+    field_names = [field["name"] for field in fields_payload]
+    assert "对标素材链接" in field_names
+    assert "封面链接" in field_names
+
+    content = (tmp_path / "xdg" / "vtf" / "config.toml").read_text("utf-8")
+    assert 'schema = "' in content
+    assert "baokuan.toml" in content
+
+
+def test_default_schema_documents_attachment_as_auto_created() -> None:
+    schema_text = Path("vtf/assets/schemas/baokuan.toml").read_text("utf-8")
+    assert "name = \"原始素材\"" in schema_text
+    assert "type = \"attachment\"" in schema_text
+    assert "一起自动创建这一列" in schema_text
+    assert "手动加这一列" not in schema_text
+
+
 def test_init_feishu_no_write_config_skips_patch(
     tmp_path: Path, schema_file: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
 
     with patch(
-        "vtf.commands.init.shutil.which", return_value="/fake/lark-cli"
+        "vtf.config.shutil.which", return_value="/fake/lark-cli"
     ), patch(
         "vtf.commands.init.subprocess.run",
         side_effect=[
@@ -167,7 +204,7 @@ def test_init_feishu_syncs_missing_fields_when_base_exists(
     create_b = _ok({"ok": True, "data": {"field": {"field_id": "fldB"}}})
 
     with patch(
-        "vtf.commands.init.shutil.which", return_value="/fake/lark-cli"
+        "vtf.config.shutil.which", return_value="/fake/lark-cli"
     ), patch(
         "vtf.commands.init.subprocess.run",
         side_effect=[_config_show_ok(), field_list, create_a, create_b],
@@ -212,7 +249,7 @@ def test_init_feishu_sync_no_missing_fields(
     )
 
     with patch(
-        "vtf.commands.init.shutil.which", return_value="/fake/lark-cli"
+        "vtf.config.shutil.which", return_value="/fake/lark-cli"
     ), patch(
         "vtf.commands.init.subprocess.run",
         side_effect=[_config_show_ok(), field_list],
@@ -231,7 +268,7 @@ def test_init_feishu_fails_when_lark_cli_not_installed(
     tmp_path: Path, schema_file: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
-    with patch("vtf.commands.init.shutil.which", return_value=None), patch(
+    with patch("vtf.config.shutil.which", return_value=None), patch(
         "vtf.commands.init.subprocess.run"
     ) as run_mock:
         result = CliRunner().invoke(
@@ -250,7 +287,7 @@ def test_init_feishu_fails_when_app_not_bound(
         args=[], returncode=0, stdout=json.dumps({"appId": ""}), stderr=""
     )
     with patch(
-        "vtf.commands.init.shutil.which", return_value="/fake/lark-cli"
+        "vtf.config.shutil.which", return_value="/fake/lark-cli"
     ), patch("vtf.commands.init.subprocess.run", side_effect=[no_app]) as run_mock:
         result = CliRunner().invoke(
             main, ["init", "feishu", "--schema", str(schema_file)]
@@ -280,7 +317,7 @@ def test_init_feishu_recreate_forces_new_base(
     )
     table_create = _ok({"ok": True, "data": {"table": {"table_id": "tblNEW"}}})
     with patch(
-        "vtf.commands.init.shutil.which", return_value="/fake/lark-cli"
+        "vtf.config.shutil.which", return_value="/fake/lark-cli"
     ), patch(
         "vtf.commands.init.subprocess.run",
         side_effect=[_config_show_ok(), base_create, table_create],

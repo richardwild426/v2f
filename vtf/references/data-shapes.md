@@ -70,4 +70,4 @@ agent 跑完 LLM 后，把 `result` 字段填上对象，再交给 `vtf assemble
 }
 ```
 
-未跑的 analyze kind 在 `analyses` 中缺失即可，sink 渲染时按缺失处理。
+未跑的 analyze kind 会导致 `vtf assemble` 报错。三个 kind（summary, breakdown, rewrite）**全部跑完** result 非 null 才算完成。

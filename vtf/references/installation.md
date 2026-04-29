@@ -22,10 +22,12 @@ uv run vtf doctor
 ### 2.1 检测 FunASR 环境
 
 ```bash
-for py in python3 python ~/.venv/funasr/bin/python; do
-  if [ -x "$py" ]; then
-    "$py" -c "import funasr; print(funasr.__version__)" 2>/dev/null && echo "FOUND: $py"
-  fi
+for py in "$HOME/.venv/funasr/bin/python" python3 python; do
+  case "$py" in
+    */*) [ -x "$py" ] && "$py" -c "import funasr; print(funasr.__version__)" 2>/dev/null && echo "FOUND: $py" ;;
+    *)   resolved="$(command -v "$py" 2>/dev/null || true)"
+         [ -n "$resolved" ] && [ -x "$resolved" ] && "$resolved" -c "import funasr; print(funasr.__version__)" 2>/dev/null && echo "FOUND: $py" ;;
+  esac
 done
 ```
 
@@ -133,9 +135,10 @@ identity = "bot"
 ## 6. 快速验证
 
 ```bash
-vtf run "https://www.youtube.com/watch?v=dQw4w9WgXcQ" \
-  --skip summary --skip breakdown --skip rewrite
+vtf run "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 ```
+
+跑通 download + transcribe + merge + analyze（三个 kind 全部生成 prompt）。`vtf run` 停在 analyze 阶段等待 LLM 回填，不调用 LLM。
 
 ## 7. 常见问题
 

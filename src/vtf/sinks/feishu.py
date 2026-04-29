@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import tomllib
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
+from vtf.config import resolve_feishu_schema_path, resolve_lark_cli
 from vtf.errors import EnvironmentError as VtfEnvError
 from vtf.errors import RemoteError, UserError
 from vtf.sinks.base import EmitOutcome
@@ -26,20 +26,21 @@ class Feishu:
             return (False, "缺少 schema 文件路径; 请运行 vtf init feishu")
         if f.identity not in ("bot", "user"):
             return (False, f"sink.feishu.identity 取值非法: {f.identity!r}; 仅支持 bot 或 user")
-        if not shutil.which("lark-cli"):
+        if not resolve_lark_cli(cfg):
             return (False, "lark-cli 未找到; 参考 README 安装 lark-cli")
         return (True, "")
 
     def emit(self, result: dict[str, Any], cfg: Any) -> EmitOutcome:
         f = cfg.sink.feishu
+        meta = result.get("meta", {})
+        if not meta.get("thumbnail"):
+            raise UserError("meta.thumbnail missing; feishu output must include cover URL")
 
-        lark = shutil.which("lark-cli")
+        lark = resolve_lark_cli(cfg)
         if not lark:
             raise VtfEnvError("lark-cli 未找到; 参考 README 安装 lark-cli")
 
-        schema_path = Path(f.schema).expanduser()
-        if not schema_path.is_absolute():
-            schema_path = Path.cwd() / schema_path
+        schema_path = resolve_feishu_schema_path(cfg)
         if not schema_path.exists():
             raise UserError(f"schema 文件不存在: {schema_path}")
 
@@ -123,7 +124,11 @@ class Feishu:
                     "（base 右上角「···」→「更多」→「添加文档应用」）；"
                     "若 identity=user，请确认登录用户对 base 有可编辑权限。"
                 )
-            elif code == 1254045 or "字段名不存在" in str(msg) or "field name not found" in str(msg).lower():
+            elif (
+                code == 1254045
+                or "字段名不存在" in str(msg)
+                or "field name not found" in str(msg).lower()
+            ):
                 hint = (
                     "\n  → 修复：飞书表格里缺少 schema 中定义的字段。"
                     "运行 `vtf init feishu` 自动补齐缺失字段；"
@@ -135,7 +140,8 @@ class Feishu:
         records = data.get("records") or []
         if not records:
             raise RemoteError("飞书 API 未返回 record_id，无法继续上传附件")
-        return records[0].get("record_id", "")
+        first: dict[str, Any] = cast(dict[str, Any], records[0])
+        return cast(str, first.get("record_id", ""))
 
     # 飞书附件单文件上限 2GB；留 100MB 余量避免临界报错
     _ATTACHMENT_MAX_BYTES = 1900 * 1024 * 1024

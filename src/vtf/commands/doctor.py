@@ -7,6 +7,7 @@ import subprocess
 import click
 
 from vtf._ctx import get_config
+from vtf.config import resolve_lark_cli
 from vtf.transcribe.funasr import find_funasr_python
 
 
@@ -48,7 +49,7 @@ def cmd(ctx: click.Context) -> None:
         click.echo(f"❌ FunASR: 未找到 (funasr_python 配置: {env_hint})")
 
     # lark-cli (optional, 飞书表格需要)
-    lark = shutil.which("lark-cli")
+    lark = resolve_lark_cli(cfg)
     if lark:
         app_id = ""
         try:
@@ -74,7 +75,8 @@ def cmd(ctx: click.Context) -> None:
                 )
         else:
             click.echo(
-                f"⚠️  lark-cli: {lark} (未绑定应用；运行 `lark-cli config init --new` 创建/绑定飞书应用)"
+                f"⚠️  lark-cli: {lark}"
+                " (未绑定应用；运行 `lark-cli config init --new` 创建/绑定飞书应用)"
             )
     else:
         click.echo("⚠️  lark-cli: 未找到（可选，仅飞书表格需要）")
@@ -105,13 +107,16 @@ def cmd(ctx: click.Context) -> None:
         click.echo("  1. 绑定飞书应用（一次性）：")
         click.echo("       lark-cli config init --new")
         click.echo("     验证：`lark-cli config show` 输出包含 appId")
-        click.echo("  2. 让 vtf 自动建好 base + table + 全部字段，并写回 ~/.config/vtf/config.toml：")
+        click.echo(
+            "  2. 让 vtf 自动建好 base + table + 全部字段，"
+            "并写回 ~/.config/vtf/config.toml："
+        )
         click.echo("       vtf init feishu")
         click.echo("     vtf 会输出新 base 的 URL；按提示把机器人加为 base 协作者（可编辑权限）")
         click.echo("  3. 跑一次 `vtf doctor`，全绿即可使用 sink=feishu")
         click.echo("")
         click.echo("  已有飞书表格但字段不全？同样跑 `vtf init feishu` 即可同步缺字段")
-        click.echo("  详见：references/INSTALL.md 第 3 节")
+        click.echo("  详见：references/installation.md 第 3 节")
 
     if issues:
         click.echo("\n=== 修复建议 ===")

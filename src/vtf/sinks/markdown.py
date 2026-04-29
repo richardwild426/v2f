@@ -40,7 +40,8 @@ class Markdown:
         rewrite = analyses.get("rewrite", {})
 
         thumbnail = meta.get("thumbnail", "")
-        cover_cell = f"![封面]({thumbnail})<br>{thumbnail}" if thumbnail else ""
+        degraded = not thumbnail
+        cover_cell = f"![封面]({thumbnail})<br>{thumbnail}" if thumbnail else "（封面 URL 缺失）"
 
         summary_text = summary.get("text", "")
         summary_points = _bullets(summary.get("points"))
@@ -126,4 +127,4 @@ class Markdown:
 
 {breakdown_text}
 """
-        return EmitOutcome(sink="markdown", reason=md)
+        return EmitOutcome(sink="markdown", reason=md, degraded=degraded)

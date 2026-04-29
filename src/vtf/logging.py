@@ -9,11 +9,11 @@ from typing import Any
 class Logger:
     def __init__(
         self,
-        stream: Any = sys.stderr,
+        stream: Any = None,
         json_mode: bool = False,
         quiet: bool = False,
     ) -> None:
-        self._stream = stream
+        self._stream = stream if stream is not None else sys.stderr
         self._json = json_mode
         self._quiet = quiet
 

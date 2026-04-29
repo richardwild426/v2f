@@ -1,4 +1,9 @@
-from vtf.config import load_config
+from vtf.config import (
+    DEFAULT_FEISHU_SCHEMA,
+    load_config,
+    resolve_feishu_schema_path,
+    resolve_schema_path,
+)
 
 
 def test_default_config_values():
@@ -13,6 +18,7 @@ def test_default_config_values():
     assert cfg.download.audio_format == "mp3"
     assert cfg.download.audio_quality == "0"
     assert cfg.download.retries == 3
+    assert cfg.sink.feishu.schema == DEFAULT_FEISHU_SCHEMA
     assert cfg.sink.feishu.lark_cli == "lark-cli"
     assert cfg.sink.feishu.identity == "bot"
 
@@ -69,3 +75,26 @@ def test_overrides_have_highest_priority(tmp_path):
         overrides={"output": {"sink": "markdown"}},
     )
     assert cfg.output.sink == "markdown"
+
+
+def test_default_feishu_schema_path_resolves():
+    schema = resolve_schema_path(DEFAULT_FEISHU_SCHEMA)
+    assert schema.exists()
+    assert schema.name == "baokuan.toml"
+
+
+def test_schema_path_prefers_config_directory(tmp_path):
+    schema = tmp_path / "schema.toml"
+    schema.write_text("[[fields]]\nname = \"Title\"\n", encoding="utf-8")
+    assert resolve_schema_path("schema.toml", config_dir=tmp_path) == schema.resolve()
+
+
+def test_config_schema_relative_path_uses_config_directory(tmp_path):
+    schema = tmp_path / "schema.toml"
+    schema.write_text("[[fields]]\nname = \"Title\"\n", encoding="utf-8")
+    user = tmp_path / "config.toml"
+    user.write_text('[sink.feishu]\nschema = "schema.toml"\n', encoding="utf-8")
+
+    cfg = load_config(user_path=user, project_path=None, env={}, overrides={})
+    assert resolve_feishu_schema_path(cfg) == schema.resolve()
+    assert "schema_config_dir" not in repr(cfg.sink.feishu)

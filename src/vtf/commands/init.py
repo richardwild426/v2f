@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import tomllib
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import click
 
 from vtf._ctx import get_config, get_logger
-from vtf.config import default_user_path
+from vtf.config import (
+    DEFAULT_FEISHU_SCHEMA,
+    default_user_path,
+    resolve_feishu_schema_path,
+    resolve_lark_cli,
+)
 from vtf.errors import EnvironmentError as VtfEnvError
 from vtf.errors import RemoteError, UserError, VtfError
 
@@ -25,10 +29,13 @@ def cmd() -> None:
 
 
 @cmd.command(name="feishu", help="自动创建/同步飞书 base+table，按 schema 建好所有字段")
-@click.option("--folder", "folder_token", default="", help="云空间文件夹 token；不传则放在云空间根目录")
-@click.option("--name", "base_name", default="", help="新 base 名，默认 'vtf 视频分析 - YYYY-MM-DD'")
+@click.option("--folder", "folder_token", default="",
+              help="云空间文件夹 token；不传则放在云空间根目录")
+@click.option("--name", "base_name", default="",
+              help="新 base 名，默认 'vtf 视频分析 - YYYY-MM-DD'")
 @click.option("--table-name", default="分析记录", help="新 table 名（默认: 分析记录）")
-@click.option("--schema", "schema_path", default="", help="schema TOML 路径，覆盖 cfg.sink.feishu.schema")
+@click.option("--schema", "schema_path", default="",
+              help="schema TOML 路径，覆盖 cfg.sink.feishu.schema")
 @click.option(
     "--write-config/--no-write-config",
     default=True,
@@ -54,8 +61,11 @@ def feishu_cmd(
     f = cfg.sink.feishu
 
     try:
-        lark = _require_lark_cli_bound(f.identity)
-        schema_file = _resolve_schema_path(schema_path or f.schema)
+        raw_schema = schema_path or f.schema or DEFAULT_FEISHU_SCHEMA
+        lark = _require_lark_cli_bound(cfg)
+        schema_file = resolve_feishu_schema_path(cfg, raw_schema if schema_path else None)
+        if not schema_file.exists():
+            raise UserError(f"schema 文件不存在: {schema_file}")
         fields_def = _load_schema_fields(schema_file)
 
         if f.base_token and not recreate:
@@ -85,8 +95,8 @@ def _default_base_name() -> str:
     return f"vtf 视频分析 - {datetime.now().strftime('%Y-%m-%d')}"
 
 
-def _require_lark_cli_bound(identity: str) -> str:
-    lark = shutil.which("lark-cli")
+def _require_lark_cli_bound(cfg: Any) -> str:
+    lark = resolve_lark_cli(cfg)
     if not lark:
         raise VtfEnvError(
             "lark-cli 未找到。请安装 lark-cli 并先跑 `lark-cli config init --new` 绑定飞书应用"
@@ -96,7 +106,8 @@ def _require_lark_cli_bound(identity: str) -> str:
     )
     if proc.returncode != 0:
         raise VtfEnvError(
-            f"lark-cli config show 失败: {proc.stderr.strip()[:200]}；先跑 `lark-cli config init --new`"
+            f"lark-cli config show 失败: {proc.stderr.strip()[:200]}"
+            "；先跑 `lark-cli config init --new`"
         )
     try:
         info = json.loads(proc.stdout)
@@ -107,24 +118,11 @@ def _require_lark_cli_bound(identity: str) -> str:
         raise VtfEnvError(
             "lark-cli 尚未绑定飞书应用。请先运行：lark-cli config init --new"
         )
-    if identity == "user" and not info.get("users"):
+    if cfg.sink.feishu.identity == "user" and not info.get("users"):
         raise VtfEnvError(
             "identity=user 但 lark-cli 尚未 OAuth 登录。请运行：lark-cli auth login"
         )
     return lark
-
-
-def _resolve_schema_path(raw: str) -> Path:
-    if not raw:
-        raise UserError(
-            "未指定 schema 路径。请在配置 [sink.feishu] schema=... 或传 --schema"
-        )
-    p = Path(raw).expanduser()
-    if not p.is_absolute():
-        p = Path.cwd() / p
-    if not p.exists():
-        raise UserError(f"schema 文件不存在: {p}")
-    return p
 
 
 def _load_schema_fields(schema_file: Path) -> list[dict[str, Any]]:
@@ -296,7 +294,7 @@ def _run_lark(lark: str, args: list[str], *, timeout: int) -> dict[str, Any]:
         raise RemoteError(
             f"飞书 API 失败 (code={code}): {msg}{hint}"
         )
-    return resp
+    return cast(dict[str, Any], resp)
 
 
 def _list_existing_fields(lark: str, f: Any) -> list[dict[str, Any]]:
@@ -368,7 +366,7 @@ def _patch_user_config(*, base_token: str, table_id: str, schema: str) -> None:
     feishu["schema"] = schema
     # 同时切到 feishu sink，免得用户还要手动改 [output]
     output = existing.setdefault("output", {})
-    output.setdefault("sink", "feishu")
+    output["sink"] = "feishu"
 
     path.write_text(_dump_toml(existing), encoding="utf-8")
 
