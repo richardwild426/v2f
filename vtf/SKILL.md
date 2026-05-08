@@ -35,7 +35,19 @@ mkdir -p ~/vtf-tasks/<video_id> && cd ~/vtf-tasks/<video_id>
 
 ## 7 步流水线
 
-> 任意一步未完成 → 禁止进入下一步。详细参考 [references/pipeline.md](references/pipeline.md)。
+> 前置条件必须满足，否则禁止进入下一步。见下表。详细参考 [references/pipeline.md](references/pipeline.md)。
+
+## 前置条件总结
+
+| 步骤 | 前置条件 |
+|------|----------|
+| 1 | 无 |
+| 2 | meta.json 存在 |
+| 3 | AUDIO 文件存在 |
+| 4 | transcript.json 存在 |
+| 5 | meta.json 和 lines.json 存在 |
+| 6 | summary.json、breakdown.json、rewrite.json 存在 |
+| 7 | result.json 存在 |
 
 | # | 步骤 | 命令 | 产物 | 验证 |
 |---|------|------|------|------|
