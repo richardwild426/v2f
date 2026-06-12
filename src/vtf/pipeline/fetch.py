@@ -8,6 +8,7 @@ from typing import Any
 
 from vtf.errors import EnvironmentError as VtfEnvError
 from vtf.errors import RemoteError
+from vtf.pipeline.yt_dlp import format_yt_dlp_error
 from vtf.platforms import detect
 
 
@@ -19,6 +20,13 @@ def fetch(*, url: str, cfg: Any) -> dict[str, Any]:
     cmd = [yt_dlp, "-J", *platform.cookie_args(cfg), url]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     if r.returncode != 0:
-        raise RemoteError(f"yt-dlp 失败({r.returncode}):{r.stderr.strip()[:200]}")
+        raise RemoteError(
+            format_yt_dlp_error(
+                action="抓取元数据",
+                returncode=r.returncode,
+                stderr=r.stderr,
+                platform=platform,
+            )
+        )
     raw = json.loads(r.stdout)
     return platform.normalize_metadata(raw)

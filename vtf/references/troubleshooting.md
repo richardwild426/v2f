@@ -8,6 +8,9 @@ B站要求浏览器 Cookie 验证。
 1. 确认浏览器（Chrome/Safari/Firefox）已登录 B站
 2. 配置：`cookies_from_browser = "chrome"`（在 `~/.config/vtf/config.toml`）
 3. 或尝试其他浏览器：safari, firefox, edge
+4. 如果浏览器读取失败，导出 cookies.txt 后配置 `cookies_file`
+
+`vtf fetch` 和 `vtf download` 遇到 B站 HTTP 412 时会在错误信息里直接提示上述修复路径。
 
 ## FunASR 找不到
 
