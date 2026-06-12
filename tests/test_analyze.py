@@ -32,6 +32,40 @@ def test_analyze_uses_override_prompt(tmp_path):
     assert "MY Z END" in out["prompt"]
 
 
+def test_analyze_includes_required_feishu_result_fields(tmp_path):
+    schema = tmp_path / "s.toml"
+    schema.write_text(
+        '[[fields]]\nname = "摘要"\ntype = "text"\nsource = "analyses.summary.text"\n\n'
+        '[[fields]]\nname = "标签"\ntype = "text"\n'
+        'source = "analyses.summary.tags | tags_hashtag"\n\n'
+        '[[fields]]\nname = "标题"\ntype = "text"\nsource = "meta.title"\n',
+        encoding="utf-8",
+    )
+    cfg = Config()
+    cfg.sink.feishu.schema = str(schema)
+
+    out = analyze(
+        kind="summary",
+        meta={"title": "Z", "author": "", "platform": ""},
+        lines=[],
+        cfg=cfg,
+    )
+
+    assert out["required_result_fields"] == [
+        {
+            "field": "摘要",
+            "source": "analyses.summary.text",
+            "result_path": "text",
+        },
+        {
+            "field": "标签",
+            "source": "analyses.summary.tags | tags_hashtag",
+            "result_path": "tags",
+        },
+    ]
+    assert "required for Feishu: text, tags" in out["schema_hint"]
+
+
 def test_analyze_unknown_kind_raises():
     import pytest
 

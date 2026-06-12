@@ -76,13 +76,16 @@ vtf --workdir . run <url>
 
 1. 执行 `prompt` 字段的内容（调用 LLM）
 2. 把 LLM 返回的 JSON 对象完整填入 `result` 字段
-3. 三个 kind（summary, breakdown, rewrite）**全部跑**，缺一不可
+3. 如果输出包含 `required_result_fields`，逐项确认这些 `result_path` 在 `result` 里都有非空值
+4. 三个 kind（summary, breakdown, rewrite）**全部跑**，缺一不可
 
 ```json
-{"kind": "summary", "prompt": "...", "result": null}
+{"kind": "summary", "prompt": "...", "required_result_fields": [{"result_path": "text"}], "result": null}
 // 智能体调 LLM 后回填：
 {"kind": "summary", "prompt": "...", "result": {"text": "...", "points": [...], "tags": [...]}}
 ```
+
+飞书 sink 会在写入前阻断缺失的 `analyses.*` 字段，报错会列出飞书字段名和 source path。不要把缺失字段留空后继续 emit。
 
 rewrite 的 LLM 返回后检查 `result._meta.比值` ≥ 0.95，未达标则重调一次。
 

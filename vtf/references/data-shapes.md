@@ -49,12 +49,19 @@
   "kind": "summary",
   "prompt": "<完整渲染的 LLM prompt>",
   "context": {"title": "...", "author": "...", "lines_count": 42},
-  "schema_hint": "expected: {text, points[], tags[]}",
+  "schema_hint": "expected: {text, points[], tags[]}; required for Feishu: text, tags",
+  "required_result_fields": [
+    {
+      "field": "摘要",
+      "source": "analyses.summary.text",
+      "result_path": "text"
+    }
+  ],
   "result": null
 }
 ```
 
-agent 跑完 LLM 后，把 `result` 字段填上对象，再交给 `vtf assemble`。
+agent 跑完 LLM 后，把 `result` 字段填上对象，再交给 `vtf assemble`。如果存在 `required_result_fields`，这些 `result_path` 是下游飞书 schema 需要的字段，必须在 `result` 中填充非空值。
 
 ## result.json (assemble 输出)
 

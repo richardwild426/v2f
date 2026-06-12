@@ -93,6 +93,60 @@ def test_emit_passes_as_bot_to_lark_cli(tmp_path):
     assert "rec_xxx" in outcome.reason
 
 
+def test_emit_rejects_missing_required_analysis_field_before_remote_call(tmp_path):
+    schema = tmp_path / "s.toml"
+    schema.write_text(
+        '[[fields]]\nname = "开场钩子"\ntype = "text"\nsource = "analyses.breakdown.hook"\n',
+        encoding="utf-8",
+    )
+    cfg = Config()
+    cfg.sink.feishu.base_token = "tok"
+    cfg.sink.feishu.table_id = "tbl"
+    cfg.sink.feishu.schema = str(schema)
+    cfg.sink.feishu.lark_cli = "/fake/lark-cli"
+
+    with (
+        patch("vtf.sinks.feishu.subprocess.run") as run_mock,
+        pytest.raises(UserError) as exc,
+    ):
+        Feishu().emit({"meta": _meta(), "analyses": {"breakdown": {}}}, cfg)
+
+    assert not run_mock.called
+    msg = str(exc.value)
+    assert "开场钩子" in msg
+    assert "analyses.breakdown.hook" in msg
+
+
+def test_emit_allows_missing_optional_metadata_field(tmp_path):
+    schema = tmp_path / "s.toml"
+    schema.write_text(
+        '[[fields]]\nname = "分享数"\ntype = "text"\nsource = "meta.share"\n',
+        encoding="utf-8",
+    )
+    cfg = Config()
+    cfg.sink.feishu.base_token = "tok"
+    cfg.sink.feishu.table_id = "tbl"
+    cfg.sink.feishu.schema = str(schema)
+    cfg.sink.feishu.lark_cli = "/fake/lark-cli"
+    fake = subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout=json.dumps(
+            {"ok": True, "data": {"records": [{"record_id": "rec_meta"}]}}
+        ),
+        stderr="",
+    )
+
+    with patch(
+        "vtf.sinks.feishu.subprocess.run", return_value=fake
+    ) as run_mock:
+        Feishu().emit({"meta": _meta()}, cfg)
+
+    payload = json.loads(run_mock.call_args.args[0][run_mock.call_args.args[0].index("--json") + 1])
+    assert payload["fields"] == ["分享数"]
+    assert payload["rows"] == [[""]]
+
+
 def test_emit_no_permission_error_includes_collaborator_hint(tmp_path):
     cfg = _configured_cfg(tmp_path, identity="bot")
     cfg.sink.feishu.lark_cli = "/fake/lark-cli"

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 import tomllib
 from dataclasses import dataclass, field, fields, is_dataclass
 from pathlib import Path
@@ -227,6 +228,8 @@ def resolve_schema_path(raw: str, *, config_dir: Path | None = None) -> Path:
     candidates.extend(
         [
             package_root / p,
+            package_root.parents[1] / "vtf" / p,
+            Path(sys.prefix) / "vtf" / p,
         ]
     )
     for candidate in candidates:

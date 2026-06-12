@@ -78,6 +78,14 @@ vtf doctor
 
 **解决**：确保三个 kind（summary, breakdown, rewrite）全部已调 LLM 并回填 result。
 
+## 缺少飞书必填字段内容
+
+`vtf emit` 报 `缺少飞书必填字段内容，已停止写入: 字段名(source.path)`。
+
+**原因**：飞书 schema 中的 `analyses.*` 来源字段默认必填，但某个 LLM `result` 没有填对应字段，或字段为空字符串 / 空数组。
+
+**解决**：打开对应的 `{summary,breakdown,rewrite}.json`，按报错里的 source path 补齐 `result` 内容，再重新运行 `vtf assemble` 和 `vtf emit`。
+
 ## rewrite 比值不达标
 
 LLM 返回的改写稿字数比值 < 0.95。

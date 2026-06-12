@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-import tomllib
 from pathlib import Path
 from typing import Any, cast
 
@@ -10,7 +9,7 @@ from vtf.config import resolve_feishu_schema_path, resolve_lark_cli
 from vtf.errors import EnvironmentError as VtfEnvError
 from vtf.errors import RemoteError, UserError
 from vtf.sinks.base import EmitOutcome
-from vtf.sinks.schema import render_field
+from vtf.sinks.schema import load_schema_fields, missing_required_fields, render_field
 
 
 class Feishu:
@@ -44,10 +43,11 @@ class Feishu:
         if not schema_path.exists():
             raise UserError(f"schema 文件不存在: {schema_path}")
 
-        schema = tomllib.loads(schema_path.read_text("utf-8"))
-        fields_def = schema.get("fields", [])
-        if not fields_def:
-            raise UserError(f"schema 文件无 fields 定义: {schema_path}")
+        fields_def = load_schema_fields(schema_path)
+        missing = missing_required_fields(result, fields_def)
+        if missing:
+            details = ", ".join(f"{item.name}({item.source})" for item in missing)
+            raise UserError(f"缺少飞书必填字段内容，已停止写入: {details}")
 
         names: list[str] = []
         row: list[Any] = []

@@ -110,6 +110,21 @@ source = "meta.title"  # 数据路径（点号分隔）
 - `analyses.summary.tags | tags_hashtag` — 数组用空格连接
 - `meta | stats_compact` — 统计数据格式化
 
+### 写入前完整性校验
+
+`vtf emit` 会在调用飞书前按 schema 校验字段内容：
+
+- `analyses.*` 来源字段默认必填，缺失或为空会停止写入，避免产生半空记录
+- `meta.*` 来源字段默认可空；不同平台可能不提供播放数、分享数等元数据
+- `attachment` 字段不参与主记录必填校验，继续按 best-effort 上传
+- `meta.thumbnail` 是全局硬要求，缺失时仍会直接报错
+
+报错会列出飞书字段名和 source path，例如：
+
+```text
+缺少飞书必填字段内容，已停止写入: 开场钩子(analyses.breakdown.hook)
+```
+
 ## 附件字段
 
 类型为 `attachment` 的字段，source 指向的是本地文件路径（通常是 `meta.video_path`，由 download 命令自动保存）。
