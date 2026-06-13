@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-**Phase 7 已完成** - 截图功能优化与集成
+**Phase 8 已完成** - 截图功能增强与用户体验优化
 
 ### 完成的功能
 
@@ -33,10 +33,16 @@
    - 缓存机制（HashCache）
    - 并行处理
 
+6. **Phase 8 新增功能** ✅
+   - **进度条显示** - 实时显示截图进度（`--progress/--no-progress`）
+   - **批量视频处理** - `vtf screenshot-batch` 命令处理多个视频
+   - **截图质量配置** - `--quality` 参数控制 JPEG 质量（1-31）
+   - **截图尺寸配置** - `--width`、`--height`、`--scale` 参数控制输出尺寸
+
 ### 测试状态
 
-- **总测试数**: 162
-- **通过**: 162 ✅
+- **总测试数**: 168
+- **通过**: 168 ✅
 - **失败**: 0
 
 ### 代码质量
@@ -52,8 +58,26 @@
 # 基本截图
 vtf screenshot --video video.mp4 --subtitles lines.json --mode subtitle
 
+# 高质量截图（quality=1 最高质量）
+vtf screenshot --video video.mp4 --subtitles lines.json --quality 1
+
+# 缩小一半尺寸
+vtf screenshot --video video.mp4 --subtitles lines.json --scale 0.5
+
+# 指定输出尺寸
+vtf screenshot --video video.mp4 --subtitles lines.json --width 1280 --height 720
+
+# 禁用进度条
+vtf screenshot --video video.mp4 --subtitles lines.json --no-progress
+
 # 启用 AI 描述
 vtf screenshot --video video.mp4 --subtitles lines.json --ai-describe
+
+# 批量处理多个视频
+vtf screenshot-batch -v video1.mp4 -v video2.mp4 --subtitles-dir ./subs
+
+# 批量处理目录下所有视频
+vtf screenshot-batch --videos-dir ./videos --subtitles-dir ./subs --output ./screenshots
 
 # 生成报告
 vtf screenshot-report --input screenshots.json --output report.html
@@ -72,44 +96,95 @@ scene_threshold = 0.3
 min_interval_seconds = 2
 similarity_threshold = 0.95
 output_dir = "screenshots"
+# 截图质量配置
+quality = 2  # 1-31，越小质量越高
+width = 0    # 输出宽度（0 表示保持原始比例）
+height = 0   # 输出高度（0 表示保持原始比例）
+scale = 1.0  # 缩放比例（0.5 表示缩小一半）
+# AI 描述生成配置
 ai_describe = false
 llm_provider = ""
 llm_model = ""
 llm_api_key = ""
 llm_base_url = ""
 llm_max_tokens = 300
+# 性能优化配置
 max_workers = 4
 cache_dir = ".cache/vtf"
 use_cache = true
+# 报告生成配置
 report_title = "视频截图报告"
 report_embed_images = false
 report_format = "html"
 ```
 
-### 下一步计划
+### Phase 8 新增功能详情
 
-1. **性能优化**
-   - 优化批量 ffmpeg 处理性能
-   - 改进缓存策略减少重复计算
+#### 1. 进度条显示
 
-2. **功能扩展**
-   - 支持更多视频格式
-   - 添加截图质量配置选项
-   - 支持自定义截图尺寸
+实时显示截图处理进度，支持 TTY 终端自动检测：
 
-3. **用户体验**
-   - 添加进度条显示
-   - 改进错误提示信息
-   - 支持批量处理多个视频
+```bash
+# 启用进度条（默认）
+vtf screenshot --video video.mp4 --subtitles lines.json --progress
 
-4. **集成增强**
-   - 支持更多输出格式（PDF、Markdown）
-   - 支持更多平台集成（微信、钉钉）
-   - 添加截图标注功能
+# 禁用进度条（非 TTY 环境自动禁用）
+vtf screenshot --video video.mp4 --subtitles lines.json --no-progress
+```
 
-### 技术债务
+#### 2. 批量视频处理
 
-- 无
+`vtf screenshot-batch` 命令支持：
+
+- **多视频指定**：`-v video1.mp4 -v video2.mp4`
+- **目录扫描**：`--videos-dir ./videos`
+- **字幕目录**：`--subtitles-dir ./subs`（自动匹配同名 .json 文件）
+- **输出结构**：每个视频创建独立子目录
+
+```bash
+# 处理指定视频
+vtf screenshot-batch -v video1.mp4 -v video2.mp4 --subtitles-dir ./subs
+
+# 处理目录下所有视频
+vtf screenshot-batch --videos-dir ./videos --subtitles-dir ./subs --output ./screenshots
+
+# 指定视频扩展名
+vtf screenshot-batch --videos-dir ./videos --video-extensions mp4,mkv,avi
+```
+
+#### 3. 截图质量配置
+
+通过 `--quality` 参数控制 JPEG 压缩质量：
+
+```bash
+# 最高质量（文件较大）
+vtf screenshot --video video.mp4 --subtitles lines.json --quality 1
+
+# 默认质量
+vtf screenshot --video video.mp4 --subtitles lines.json --quality 2
+
+# 较低质量（文件较小）
+vtf screenshot --video video.mp4 --subtitles lines.json --quality 10
+```
+
+#### 4. 截图尺寸配置
+
+支持三种尺寸调整方式：
+
+```bash
+# 指定宽度（高度自动按比例）
+vtf screenshot --video video.mp4 --subtitles lines.json --width 1280
+
+# 指定高度（宽度自动按比例）
+vtf screenshot --video video.mp4 --subtitles lines.json --height 720
+
+# 指定宽高
+vtf screenshot --video video.mp4 --subtitles lines.json --width 1280 --height 720
+
+# 缩放比例
+vtf screenshot --video video.mp4 --subtitles lines.json --scale 0.5  # 缩小一半
+vtf screenshot --video video.mp4 --subtitles lines.json --scale 2.0  # 放大一倍
+```
 
 ### 文档
 
@@ -120,6 +195,7 @@ report_format = "html"
 
 ### 最近提交
 
+- Phase 8 功能开发中...
 - `f3715d1` - feat: 截图功能优化与集成
 - `bfd938b` - Improve Bilibili yt-dlp error guidance
 - `b7770f2` - chore: 提交 trellis 工作流配置

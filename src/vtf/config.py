@@ -99,6 +99,11 @@ class ScreenshotConfig:
     min_interval_seconds: int = 2
     similarity_threshold: float = 0.95
     output_dir: str = "screenshots"
+    # 截图质量配置
+    quality: int = 2  # ffmpeg -q:v 参数，1-31，越小质量越高
+    width: int = 0  # 输出宽度（0 表示保持原始比例）
+    height: int = 0  # 输出高度（0 表示保持原始比例）
+    scale: float = 1.0  # 缩放比例（0.5 表示缩小一半）
     # AI 描述生成配置
     ai_describe: bool = False
     # LLM 配置（用于直接调用）

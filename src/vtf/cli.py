@@ -50,6 +50,9 @@ from vtf.commands import (
     screenshot_report as _screenshot_report,
 )
 from vtf.commands import (
+    screenshot_batch as _screenshot_batch,
+)
+from vtf.commands import (
     transcribe as _transcribe,
 )
 
@@ -89,6 +92,7 @@ main.add_command(_doctor.cmd, name="doctor")
 main.add_command(_screenshot.cmd, name="screenshot")
 main.add_command(_screenshot_emit.cmd, name="screenshot-emit")
 main.add_command(_screenshot_report.cmd, name="screenshot-report")
+main.add_command(_screenshot_batch.cmd, name="screenshot-batch")
 
 
 if __name__ == "__main__":

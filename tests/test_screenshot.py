@@ -35,6 +35,10 @@ class TestScreenshotConfig:
         assert cfg.min_interval_seconds == 2
         assert cfg.similarity_threshold == 0.95
         assert cfg.output_dir == "screenshots"
+        assert cfg.quality == 2
+        assert cfg.width == 0
+        assert cfg.height == 0
+        assert cfg.scale == 1.0
 
     def test_custom_config(self):
         cfg = ScreenshotConfig(
@@ -44,6 +48,10 @@ class TestScreenshotConfig:
             min_interval_seconds=5,
             similarity_threshold=0.9,
             output_dir="output/screenshots",
+            quality=5,
+            width=1280,
+            height=720,
+            scale=0.5,
         )
         assert cfg.enabled is False
         assert cfg.ffmpeg_path == "/usr/local/bin/ffmpeg"
@@ -51,6 +59,10 @@ class TestScreenshotConfig:
         assert cfg.min_interval_seconds == 5
         assert cfg.similarity_threshold == 0.9
         assert cfg.output_dir == "output/screenshots"
+        assert cfg.quality == 5
+        assert cfg.width == 1280
+        assert cfg.height == 720
+        assert cfg.scale == 0.5
 
 
 class TestTakeScreenshots:
@@ -658,3 +670,108 @@ class TestTakeScreenshotsWithDescription:
         assert len(screenshots) == 1
         # 即使配置禁用，传入 llm_caller 也会触发描述生成
         mock_generate.assert_called_once()
+
+
+class TestProgressCallback:
+    """进度回调测试"""
+
+    @patch("subprocess.run")
+    @patch("vtf.pipeline.screenshot._calculate_phash")
+    def test_progress_callback_called(self, mock_phash, mock_run, tmp_path):
+        """测试进度回调被正确调用"""
+        video_path = tmp_path / "test.mp4"
+        video_path.touch()
+        output_dir = tmp_path / "screenshots"
+        output_dir.mkdir()
+
+        lines = [
+            {"text": "字幕1", "start_ms": 1000, "end_ms": 2000},
+            {"text": "字幕2", "start_ms": 3000, "end_ms": 4000},
+        ]
+
+        cfg = MagicMock()
+        cfg.screenshot.output_dir = str(output_dir)
+        cfg.screenshot.ffmpeg_path = "ffmpeg"
+        cfg.screenshot.similarity_threshold = 0.95
+
+        mock_run.return_value = MagicMock(returncode=0)
+        mock_phash.side_effect = ["hash_1", "hash_2"]
+
+        # 创建模拟的截图文件
+        for i in range(len(lines)):
+            (output_dir / f"subtitle_{i+1:04d}.jpg").touch()
+
+        # 记录进度回调
+        progress_calls = []
+
+        def progress_callback(current, total, message=""):
+            progress_calls.append((current, total, message))
+
+        screenshots = take_screenshots(
+            video_path=video_path,
+            lines=lines,
+            cfg=cfg,
+            progress_callback=progress_callback,
+        )
+
+        assert len(screenshots) == 2
+        # 验证进度回调被调用
+        assert len(progress_calls) > 0
+        # 最后一次调用应该是完成状态
+        last_call = progress_calls[-1]
+        assert last_call[0] == last_call[1]  # current == total
+
+    def test_no_progress_callback(self, tmp_path):
+        """测试没有进度回调时不会出错"""
+        from vtf.pipeline.screenshot import _noop_progress
+
+        # 空进度回调应该可以正常调用
+        _noop_progress(0, 10, "测试")
+        _noop_progress(5, 10, "测试")
+        _noop_progress(10, 10, "完成")
+
+
+class TestCLIQualityOptions:
+    """CLI 质量/尺寸选项测试"""
+
+    def test_screenshot_help_shows_quality_options(self):
+        """测试帮助信息包含质量/尺寸选项"""
+        runner = CliRunner()
+        result = runner.invoke(main, ["screenshot", "--help"])
+        assert result.exit_code == 0
+        assert "--quality" in result.output
+        assert "--width" in result.output
+        assert "--height" in result.output
+        assert "--scale" in result.output
+
+    def test_screenshot_help_shows_progress_option(self):
+        """测试帮助信息包含进度条选项"""
+        runner = CliRunner()
+        result = runner.invoke(main, ["screenshot", "--help"])
+        assert result.exit_code == 0
+        assert "--progress" in result.output
+        assert "--no-progress" in result.output
+
+
+class TestScreenshotBatchCLI:
+    """批量截图 CLI 测试"""
+
+    def test_screenshot_batch_help(self):
+        """测试批量截图命令帮助信息"""
+        runner = CliRunner()
+        result = runner.invoke(main, ["screenshot-batch", "--help"])
+        assert result.exit_code == 0
+        assert "批量处理多个视频的截图" in result.output
+        assert "--videos" in result.output
+        assert "--videos-dir" in result.output
+        assert "--subtitles-dir" in result.output
+        assert "--quality" in result.output
+        assert "--width" in result.output
+        assert "--height" in result.output
+        assert "--scale" in result.output
+
+    def test_screenshot_batch_no_videos(self):
+        """测试没有视频文件时的错误处理"""
+        runner = CliRunner()
+        result = runner.invoke(main, ["screenshot-batch", "-v", "/nonexistent/video.mp4"])
+        assert result.exit_code != 0
