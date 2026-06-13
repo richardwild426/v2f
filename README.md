@@ -80,6 +80,67 @@ export VTF_OUTPUT_SINK="markdown"  # 或 "feishu"
 
 ---
 
+## 截图功能
+
+vtf 支持根据字幕时间戳自动截取视频帧，用于内容分析和可视化。
+
+### 使用方式
+
+```bash
+# 字幕模式：根据字幕时间戳截图
+vtf screenshot --video video.mp4 --subtitles lines.json --mode subtitle
+
+# 场景模式：检测场景变化自动截图
+vtf screenshot --video video.mp4 --subtitles lines.json --mode scene
+
+# 自动模式（默认）：优先使用字幕，失败时回退到场景检测
+vtf screenshot --video video.mp4 --subtitles lines.json --mode auto
+```
+
+### 配置选项
+
+在 `config.toml` 中配置截图参数：
+
+```toml
+[screenshot]
+enabled = true
+ffmpeg_path = "ffmpeg"
+scene_threshold = 0.3      # 场景变化检测阈值（0-1）
+min_interval_seconds = 2   # 最小截图间隔
+similarity_threshold = 0.95 # 图像相似度阈值（去重）
+output_dir = "screenshots"
+```
+
+### 功能特性
+
+- **智能去重**：使用感知哈希 (pHash) 自动过滤相似截图
+- **多模式支持**：字幕模式、场景检测模式、自动回退模式
+- **时间戳关联**：每张截图关联字幕文本和时间点
+- **批量处理**：支持长视频批量截图
+
+### 输出格式
+
+截图结果以 JSON 格式输出：
+
+```json
+{
+  "video_path": "video.mp4",
+  "screenshots": [
+    {
+      "index": 0,
+      "timestamp_ms": 1000,
+      "timestamp_str": "00:01",
+      "subtitle_text": "字幕内容",
+      "image_path": "screenshots/subtitle_0000_1000.jpg",
+      "phash": "a1b2c3d4e5f6g7h8"
+    }
+  ],
+  "total": 1
+}
+```
+
+---
+
 ## 文档
 
 - [vtf/SKILL.md](vtf/SKILL.md) — 智能体指令（Agent Skills 标准格式）

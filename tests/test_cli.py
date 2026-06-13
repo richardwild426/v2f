@@ -72,4 +72,4 @@ def test_run_has_no_skip_option(tmp_path):
         main, ["--workdir", str(tmp_path), "run", "--skip", "rewrite", "https://example.com/v"]
     )
     assert r.exit_code != 0
-    assert "No such option: --skip" in r.output
+    assert "No such option" in r.output and "--skip" in r.output

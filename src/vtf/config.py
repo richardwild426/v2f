@@ -56,6 +56,9 @@ class SinkMarkdown:
     template: str = ""
 
 
+DEFAULT_FEISHU_SCREENSHOT_SCHEMA = "assets/schemas/screenshot.toml"
+
+
 @dataclass
 class SinkFeishu:
     base_token: str = ""
@@ -64,6 +67,9 @@ class SinkFeishu:
     schema: str = DEFAULT_FEISHU_SCHEMA
     lark_cli: str = "lark-cli"
     identity: str = "bot"
+    # 截图专用飞书表配置（为空时截图不写入飞书）
+    screenshot_table_id: str = ""
+    screenshot_schema: str = DEFAULT_FEISHU_SCREENSHOT_SCHEMA
 
 
 @dataclass
@@ -85,6 +91,33 @@ class AnalyzeConfig:
 
 
 @dataclass
+class ScreenshotConfig:
+    """截图功能配置"""
+    enabled: bool = True
+    ffmpeg_path: str = "ffmpeg"
+    scene_threshold: float = 0.3
+    min_interval_seconds: int = 2
+    similarity_threshold: float = 0.95
+    output_dir: str = "screenshots"
+    # AI 描述生成配置
+    ai_describe: bool = False
+    # LLM 配置（用于直接调用）
+    llm_provider: str = ""  # openai, anthropic, or custom
+    llm_model: str = ""  # e.g., gpt-4-vision-preview, claude-3-opus-20240229
+    llm_api_key: str = ""  # or set via env VTF_SCREENSHOT_LLM_API_KEY
+    llm_base_url: str = ""  # custom endpoint
+    llm_max_tokens: int = 300
+    # 性能优化配置
+    max_workers: int = 4  # 并行处理线程数
+    cache_dir: str = ".cache/vtf"  # 缓存目录
+    use_cache: bool = True  # 是否使用缓存
+    # 报告生成配置
+    report_title: str = "视频截图报告"  # 默认报告标题
+    report_embed_images: bool = False  # 是否将图片嵌入 HTML
+    report_format: str = "html"  # 默认报告格式 (html/json)
+
+
+@dataclass
 class Config:
     output: OutputConfig = field(default_factory=OutputConfig)
     transcribe: TranscribeConfig = field(default_factory=TranscribeConfig)
@@ -92,6 +125,7 @@ class Config:
     download: DownloadConfig = field(default_factory=DownloadConfig)
     sink: SinkConfig = field(default_factory=SinkConfig)
     analyze: AnalyzeConfig = field(default_factory=AnalyzeConfig)
+    screenshot: ScreenshotConfig = field(default_factory=ScreenshotConfig)
 
 
 def load_config(
@@ -214,6 +248,7 @@ def resolve_schema_path(raw: str, *, config_dir: Path | None = None) -> Path:
     Absolute paths and ~ paths are used as-is (after expanduser).
     Relative paths resolve from *config_dir* if given,
     otherwise from the vtf package directory (so shipped assets work).
+    Also checks the project root ``vtf/`` directory for development installs.
     """
     p = Path(raw).expanduser()
     if p.is_absolute():
@@ -229,6 +264,8 @@ def resolve_schema_path(raw: str, *, config_dir: Path | None = None) -> Path:
             package_root / p,
             package_root.parents[1] / "vtf" / p,
             Path(sys.prefix) / "vtf" / p,
+            # development install: assets live at <project_root>/vtf/
+            package_root.parent.parent / "vtf" / p,
         ]
     )
     for candidate in candidates:
@@ -240,3 +277,7 @@ def resolve_schema_path(raw: str, *, config_dir: Path | None = None) -> Path:
 
 def resolve_feishu_schema_path(cfg: Config, raw: str | None = None) -> Path:
     return resolve_schema_path(raw or cfg.sink.feishu.schema, config_dir=_schema_config_dir(cfg))
+
+
+def resolve_feishu_screenshot_schema_path(cfg: Config) -> Path:
+    return resolve_schema_path(cfg.sink.feishu.screenshot_schema, config_dir=_schema_config_dir(cfg))

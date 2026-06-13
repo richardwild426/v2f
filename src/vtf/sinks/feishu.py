@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import tomllib
 from pathlib import Path
 from typing import Any, cast
 
@@ -20,8 +21,20 @@ from vtf.sinks.schema import (
 )
 
 
+class _ScreenshotFeishuConfig:
+    """轻量配置适配器，让 _batch_create / _upload_attachment 复用同一逻辑。"""
+
+    def __init__(self, base_token: str, table_id: str, identity: str) -> None:
+        self.base_token = base_token
+        self.table_id = table_id
+        self.identity = identity
+
+
 class Feishu:
     name = "feishu"
+
+    # 飞书附件单文件上限 2GB；留 100MB 余量避免临界报错
+    _ATTACHMENT_MAX_BYTES = 1900 * 1024 * 1024
 
     def available(self, cfg: Any) -> tuple[bool, str]:
         f = cfg.sink.feishu
@@ -47,6 +60,12 @@ class Feishu:
     def emit(self, result: dict[str, Any], cfg: Any) -> EmitOutcome:
         f = cfg.sink.feishu
         meta = result.get("meta", {})
+
+        # 如果包含 screenshots 列表且配置了截图表，批量写入截图记录
+        screenshots = meta.get("screenshots") or result.get("screenshots")
+        if screenshots and isinstance(screenshots, list) and f.screenshot_table_id:
+            return self.emit_screenshots(screenshots, meta, cfg)
+
         if not meta.get("thumbnail"):
             raise UserError("meta.thumbnail missing; feishu output must include cover URL")
 
@@ -101,6 +120,100 @@ class Feishu:
         if attachment_msgs:
             reason += "; 附件: " + ", ".join(attachment_msgs)
         return EmitOutcome(sink="feishu", reason=reason)
+
+    def emit_screenshots(
+        self,
+        screenshots: list[dict[str, Any]],
+        meta: dict[str, Any],
+        cfg: Any,
+    ) -> EmitOutcome:
+        """批量写入截图记录到飞书截图专用表。
+
+        每张截图生成一条飞书记录，截图文件作为附件上传。
+
+        Args:
+            screenshots: 截图信息列表
+            meta: 视频元信息（用于填充视频ID、标题等公共字段）
+            cfg: 全局配置
+
+        Returns:
+            EmitOutcome 包含写入结果摘要
+        """
+        from vtf.config import resolve_feishu_screenshot_schema_path
+
+        f = cfg.sink.feishu
+        lark = resolve_lark_cli(cfg)
+        if not lark:
+            raise VtfEnvError("lark-cli 未找到; 参考 README 安装 lark-cli")
+
+        schema_path = resolve_feishu_screenshot_schema_path(cfg)
+        if not schema_path.exists():
+            raise UserError(f"截图 schema 文件不存在: {schema_path}")
+
+        schema = tomllib.loads(schema_path.read_text("utf-8"))
+        fields_def = schema.get("fields", [])
+        if not fields_def:
+            raise UserError(f"截图 schema 文件无 fields 定义: {schema_path}")
+
+        ok_count = 0
+        fail_count = 0
+        reasons: list[str] = []
+
+        for screenshot in screenshots:
+            # 构造单条截图的 result dict，使 render_field 能通过 "screenshots.xxx" 访问
+            single_result: dict[str, Any] = {
+                "meta": meta,
+                "screenshots": screenshot,
+            }
+
+            names: list[str] = []
+            row: list[Any] = []
+            attachments: list[tuple[str, str]] = []
+
+            for fdef in fields_def:
+                name = fdef.get("name", "")
+                source = fdef.get("source", "")
+                if not name or not source:
+                    continue
+                ftype = fdef.get("type", "text")
+                if ftype == "attachment":
+                    value = render_field(single_result, source)
+                    if value:
+                        attachments.append((name, str(value)))
+                    continue
+                value = render_field(single_result, source)
+                names.append(name)
+                row.append(value if value is not None else "")
+
+            try:
+                # 截图表复用同一个 base_token，但使用独立的 screenshot_table_id
+                record_id = self._batch_create(
+                    lark,
+                    _ScreenshotFeishuConfig(f.base_token, f.screenshot_table_id, f.identity),
+                    names,
+                    row,
+                )
+                for field_name, file_path_str in attachments:
+                    msg = self._upload_attachment(
+                        lark,
+                        _ScreenshotFeishuConfig(f.base_token, f.screenshot_table_id, f.identity),
+                        record_id,
+                        field_name,
+                        file_path_str,
+                    )
+                    reasons.append(msg)
+
+                ok_count += 1
+            except (RemoteError, UserError) as e:
+                fail_count += 1
+                reasons.append(f"截图 {screenshot.get('timestamp_str', '?')} 失败: {e}")
+
+        summary = f"截图写入飞书: {ok_count} 成功"
+        if fail_count:
+            summary += f", {fail_count} 失败"
+        if reasons:
+            summary += "; " + "; ".join(reasons[:5])
+        return EmitOutcome(sink="feishu", reason=summary)
 
     def _batch_create(
         self, lark: str, f: Any, names: list[str], row: list[Any]
@@ -236,9 +349,6 @@ class Feishu:
                 names,
                 rows[start : start + 200],
             )
-
-    # 飞书附件单文件上限 2GB；留 100MB 余量避免临界报错
-    _ATTACHMENT_MAX_BYTES = 1900 * 1024 * 1024
 
     def _upload_attachment(
         self, lark: str, f: Any, record_id: str, field_name: str, file_path_str: str

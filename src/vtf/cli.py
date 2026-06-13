@@ -41,6 +41,15 @@ from vtf.commands import (
     run as _run,
 )
 from vtf.commands import (
+    screenshot as _screenshot,
+)
+from vtf.commands import (
+    screenshot_emit as _screenshot_emit,
+)
+from vtf.commands import (
+    screenshot_report as _screenshot_report,
+)
+from vtf.commands import (
     transcribe as _transcribe,
 )
 
@@ -77,6 +86,9 @@ main.add_command(_init.cmd, name="init")
 main.add_command(_config_cmd.cmd, name="config")
 main.add_command(_install.cmd, name="install")
 main.add_command(_doctor.cmd, name="doctor")
+main.add_command(_screenshot.cmd, name="screenshot")
+main.add_command(_screenshot_emit.cmd, name="screenshot-emit")
+main.add_command(_screenshot_report.cmd, name="screenshot-report")
 
 
 if __name__ == "__main__":

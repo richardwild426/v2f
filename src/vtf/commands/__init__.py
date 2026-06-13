@@ -11,6 +11,7 @@ from vtf.commands import (
     install,
     merge,
     run,
+    screenshot,
     transcribe,
 )
 
@@ -27,5 +28,6 @@ __all__ = [
     "install",
     "merge",
     "run",
+    "screenshot",
     "transcribe",
 ]

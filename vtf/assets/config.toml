@@ -55,3 +55,17 @@ identity = "bot"
 summary = ""
 breakdown = ""
 rewrite = ""
+
+[screenshot]
+# 是否启用截图功能
+enabled = true
+# ffmpeg 路径
+ffmpeg_path = "ffmpeg"
+# 场景变化检测阈值（0-1，越小越敏感）
+scene_threshold = 0.3
+# 最小截图间隔（秒）
+min_interval_seconds = 2
+# 图像相似度阈值（0-1，越高越严格）
+similarity_threshold = 0.95
+# 截图输出目录
+output_dir = "screenshots"

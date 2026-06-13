@@ -164,3 +164,136 @@ vtf run <url>
 - markdown sink：报告「基本信息」段必须含 `![封面](url)<br>url`
 - 飞书 sink：schema 的 `封面链接` 字段已映射 `meta.thumbnail`，无需额外处理
 - 自定义输出：从 `result.meta.thumbnail` 取值
+
+## 截图功能（可选）
+
+vtf 支持根据字幕时间戳自动截取视频帧，用于内容分析和可视化。
+
+### 使用方式
+
+```bash
+# 字幕模式：根据字幕时间戳截图
+vtf screenshot --video video.mp4 --subtitles lines.json --mode subtitle
+
+# 场景模式：检测场景变化自动截图
+vtf screenshot --video video.mp4 --subtitles lines.json --mode scene
+
+# 自动模式（默认）：优先使用字幕，失败时回退到场景检测
+vtf screenshot --video video.mp4 --subtitles lines.json --mode auto
+```
+
+### 配置选项
+
+在 `config.toml` 中配置截图参数：
+
+```toml
+[screenshot]
+enabled = true
+ffmpeg_path = "ffmpeg"
+scene_threshold = 0.3      # 场景变化检测阈值（0-1）
+min_interval_seconds = 2   # 最小截图间隔
+similarity_threshold = 0.95 # 图像相似度阈值（去重）
+output_dir = "screenshots"
+ai_describe = false        # 启用 AI 描述生成（生成 prompt 供 LLM 填充）
+```
+
+### 功能特性
+
+- **智能去重**：使用感知哈希 (pHash) 自动过滤相似截图
+- **多模式支持**：字幕模式、场景检测模式、自动回退模式
+- **时间戳关联**：每张截图关联字幕文本和时间点
+- **批量处理**：支持长视频批量截图
+- **AI 描述生成**：可选功能，为截图生成 LLM prompt 和 AI 描述
+
+### AI 描述生成
+
+启用 `--ai-describe` 选项后，每张截图会自动生成 LLM prompt，用于后续的 AI 描述填充：
+
+```bash
+vtf screenshot --video video.mp4 --subtitles lines.json --ai-describe
+```
+
+或在配置中全局启用：
+
+```toml
+[screenshot]
+ai_describe = true
+```
+
+**输出字段扩展**：
+
+```json
+{
+  "screenshots": [
+    {
+      "index": 0,
+      "timestamp_ms": 1000,
+      "timestamp_str": "00:01",
+      "subtitle_text": "字幕内容",
+      "image_path": "screenshots/subtitle_0000_1000.jpg",
+      "phash": "a1b2c3d4e5f6g7h8",
+      "prompt": "<LLM prompt>",
+      "description": "",
+      "scene_tags": ""
+    }
+  ]
+}
+```
+
+**智能体职责**：
+1. 读取 `screenshots.json` 中每个截图的 `prompt` 字段
+2. 调用 LLM（需支持图像输入）分析截图
+3. 将 LLM 返回的 JSON 填入 `description` 和 `scene_tags` 字段
+
+**LLM 调用格式**：
+- 输入：截图图片 + prompt 文本
+- 输出：`{"description": "截图描述", "scene_tags": "标签1,标签2,标签3"}`
+
+### 集成到 vtf run
+
+在 `vtf run` 流水线中，截图步骤会根据配置自动启用 AI 描述：
+
+```toml
+[screenshot]
+enabled = true
+ai_describe = true
+```
+
+运行 `vtf run` 后，`screenshots.json` 中的截图会包含 `prompt` 字段，供智能体后续填充。
+
+### 输出格式
+
+截图结果以 JSON 格式输出：
+
+```json
+{
+  "video_path": "video.mp4",
+  "screenshots": [
+    {
+      "index": 0,
+      "timestamp_ms": 1000,
+      "timestamp_str": "00:01",
+      "subtitle_text": "字幕内容",
+      "image_path": "screenshots/subtitle_0000_1000.jpg",
+      "phash": "a1b2c3d4e5f6g7h8",
+      "prompt": "<LLM prompt（启用 ai_describe 时生成）>",
+      "description": "AI 生成的描述（启用 ai_describe 时生成）",
+      "scene_tags": "标签1,标签2（启用 ai_describe 时生成）"
+    }
+  ],
+  "total": 1
+}
+```
+
+### 前置依赖
+
+- **ffmpeg**：用于视频帧截取
+- **imagehash + Pillow**：用于图像相似度计算（可选，自动回退到 MD5）
+
+安装依赖：
+
+```bash
+pip install imagehash Pillow
+```
+
+或通过 `uv sync` 自动安装（已包含在 pyproject.toml 中）。

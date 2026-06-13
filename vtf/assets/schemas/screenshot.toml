@@ -1,0 +1,56 @@
+# 截图记录表字段设计
+
+[[fields]]
+name = "视频ID"
+type = "text"
+source = "meta.video_id"
+
+[[fields]]
+name = "视频标题"
+type = "text"
+source = "meta.title"
+
+[[fields]]
+name = "截图类型"
+type = "text"
+source = "screenshots.type"  # subtitle / scene
+
+[[fields]]
+name = "时间戳(毫秒)"
+type = "number"
+source = "screenshots.timestamp_ms"
+
+[[fields]]
+name = "时间点(可读)"
+type = "text"
+source = "screenshots.timestamp_str"  # "01:23"
+
+[[fields]]
+name = "字幕文本"
+type = "text"
+source = "screenshots.subtitle_text"
+
+[[fields]]
+name = "截图文件"
+type = "attachment"
+source = "screenshots.image_path"
+
+[[fields]]
+name = "截图描述"
+type = "text"
+source = "screenshots.description"  # AI 生成的描述
+
+[[fields]]
+name = "场景标签"
+type = "text"
+source = "screenshots.scene_tags"  # AI 生成的标签
+
+[[fields]]
+name = "相似度哈希"
+type = "text"
+source = "screenshots.phash"
+
+[[fields]]
+name = "创建时间"
+type = "datetime"
+source = "screenshots.created_at"

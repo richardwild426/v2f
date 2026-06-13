@@ -51,6 +51,33 @@ vtf finish
 `vtf run` 不调用 LLM、不会自动收尾——它停在 analyze 是必然的，因为 `result` 要靠智能体填；
 回填后才能 `vtf finish`。run 的 stderr 会打印回填后该跑的 finish 命令。
 
+### 截图功能（步骤 8）
+
+可选步骤，用于截取视频帧进行内容分析，支持 AI 描述生成：
+
+```bash
+# 字幕模式：根据字幕时间戳截图
+vtf screenshot --video video.mp4 --subtitles lines.json --mode subtitle
+
+# 场景模式：检测场景变化自动截图
+vtf screenshot --video video.mp4 --subtitles lines.json --mode scene
+
+# 自动模式（默认）：优先字幕，失败时回退到场景检测
+vtf screenshot --video video.mp4 --subtitles lines.json --mode auto
+
+# 启用 AI 描述生成（生成 prompt 供 LLM 填充）
+vtf screenshot --video video.mp4 --subtitles lines.json --ai-describe
+```
+
+**前置依赖**：ffmpeg、imagehash、Pillow（已包含在 pyproject.toml 中）
+
+**配置**：在 `config.toml` 的 `[screenshot]` 部分配置参数
+
+**AI 描述**：启用 `--ai-describe` 后，每张截图会生成 LLM prompt，输出中包含 `prompt`、`description`、`scene_tags` 字段
+
+**输出**：JSON 格式截图信息，包含时间戳、字幕文本、截图路径、感知哈希、AI 描述
+
+
 ## 分步调试（可选）
 
 需要单独排查某一步时，用下列原子命令（run/finish 就是它们的编排）。

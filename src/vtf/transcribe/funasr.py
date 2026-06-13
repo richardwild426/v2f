@@ -37,11 +37,15 @@ for res in result:
         for s in res["sentence_info"]:
             text = s["text"].strip()
             if text:
-                sentences.append(text)
+                sentences.append({
+                    "text": text,
+                    "start_ms": s.get("start", 0),
+                    "end_ms": s.get("end", 0)
+                })
 
 for i, s in enumerate(sentences):
     for wrong, right in corrections.items():
-        sentences[i] = sentences[i].replace(wrong, right)
+        sentences[i]["text"] = sentences[i]["text"].replace(wrong, right)
 
 print("TRANSCRIPT_JSON_START")
 print(json.dumps(sentences, ensure_ascii=False))

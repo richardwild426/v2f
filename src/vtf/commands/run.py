@@ -11,6 +11,7 @@ from vtf.pipeline.analyze import analyze
 from vtf.pipeline.download import download
 from vtf.pipeline.fetch import fetch
 from vtf.pipeline.merge import merge_into_lines
+from vtf.pipeline.screenshot import take_screenshots, take_screenshots_with_description
 from vtf.transcribe import transcribe
 
 _ALL_KINDS = ["summary", "breakdown", "rewrite"]
@@ -53,6 +54,44 @@ def cmd(ctx: click.Context, url: str) -> None:
         lines = merge_into_lines(transcript["sentences"])
         lines_path = workdir / "lines.json"
         lines_path.write_text(json.dumps({"lines": lines}, ensure_ascii=False), "utf-8")
+
+        # 截图步骤（如果启用且存在视频文件）
+        screenshot_enabled = getattr(cfg, "screenshot", None) and getattr(cfg.screenshot, "enabled", True)
+        if screenshot_enabled and video_path is not None:
+            log.info("screenshot", step="run")
+            try:
+                ai_describe = getattr(cfg.screenshot, "ai_describe", False) if hasattr(cfg, "screenshot") else False
+                if ai_describe:
+                    screenshots = take_screenshots_with_description(
+                        video_path=video_path,
+                        lines=lines,
+                        cfg=cfg,
+                    )
+                else:
+                    screenshots = take_screenshots(
+                        video_path=video_path,
+                        lines=lines,
+                        cfg=cfg,
+                    )
+                screenshots_path = workdir / "screenshots.json"
+                screenshots_path.write_text(
+                    json.dumps({"screenshots": screenshots, "meta": {"video_id": meta.get("video_id", ""), "title": meta.get("title", "")}}, ensure_ascii=False),
+                    "utf-8",
+                )
+                # 将截图信息添加到 meta 中
+                meta["screenshots"] = screenshots
+                meta_path.write_text(json.dumps(meta, ensure_ascii=False), "utf-8")
+                log.info(f"截图完成，共 {len(screenshots)} 张", step="run")
+                if ai_describe:
+                    log.info("AI 描述已生成（prompt 模式）", step="run")
+            except Exception as e:
+                log.warning(f"截图失败: {e}", step="run")
+                # 截图失败不影响主流程
+        else:
+            if not screenshot_enabled:
+                log.info("截图功能已禁用", step="run")
+            elif video_path is None:
+                log.info("无视频文件，跳过截图", step="run")
 
         analyses_paths: list[str] = []
         for kind in _ALL_KINDS:
