@@ -38,11 +38,12 @@
    - **批量视频处理** - `vtf screenshot-batch` 命令处理多个视频
    - **截图质量配置** - `--quality` 参数控制 JPEG 质量（1-31）
    - **截图尺寸配置** - `--width`、`--height`、`--scale` 参数控制输出尺寸
+   - **截图标注功能** - 支持文字、箭头、矩形、高亮、时间戳标注
 
 ### 测试状态
 
-- **总测试数**: 168
-- **通过**: 168 ✅
+- **总测试数**: 205
+- **通过**: 205 ✅
 - **失败**: 0
 
 ### 代码质量
@@ -185,6 +186,35 @@ vtf screenshot --video video.mp4 --subtitles lines.json --width 1280 --height 72
 vtf screenshot --video video.mp4 --subtitles lines.json --scale 0.5  # 缩小一半
 vtf screenshot --video video.mp4 --subtitles lines.json --scale 2.0  # 放大一倍
 ```
+
+#### 5. 截图标注功能（新增）
+
+支持在截图上添加文字、箭头、高亮等标注：
+
+```bash
+# 先生成截图
+vtf screenshot --video video.mp4 --subtitles lines.json --output screenshots.json
+
+# 创建标注配置
+cat > annotations.json << 'EOF'
+{
+  "0": [
+    {"type": "text", "position": [10, 10], "content": "重要信息", "color": "#FF0000"},
+    {"type": "arrow", "position": [50, 50], "end_position": [200, 200], "color": "#00FF00"}
+  ]
+}
+EOF
+
+# 添加标注
+vtf screenshot-annotate --input screenshots.json --annotations annotations.json
+```
+
+标注类型：
+- `text`: 文字标注
+- `arrow`: 箭头标注
+- `rectangle`: 矩形框
+- `highlight`: 高亮区域
+- `timestamp`: 时间戳
 
 ### 文档
 

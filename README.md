@@ -84,6 +84,58 @@ export VTF_OUTPUT_SINK="markdown"  # 或 "feishu"
 
 vtf 支持根据字幕时间戳自动截取视频帧，用于内容分析和可视化。
 
+### 截图标注
+
+支持在截图上添加文字、箭头、高亮等标注，增强可读性。
+
+#### 标注使用流程
+
+```bash
+# 1. 先生成截图
+vtf screenshot --video video.mp4 --subtitles lines.json --output screenshots.json
+
+# 2. 创建标注配置文件 annotations.json
+cat > annotations.json << 'EOF'
+{
+  "0": [
+    {"type": "text", "position": [10, 10], "content": "重要信息", "color": "#FF0000", "size": 24},
+    {"type": "arrow", "position": [50, 50], "end_position": [200, 200], "color": "#00FF00"},
+    {"type": "rectangle", "position": [100, 100], "end_position": [300, 250], "color": "#0000FF"}
+  ],
+  "1": [
+    {"type": "highlight", "position": [50, 50], "end_position": [200, 150], "color": "#FFFF00"}
+  ]
+}
+EOF
+
+# 3. 添加标注
+vtf screenshot-annotate --input screenshots.json --annotations annotations.json
+```
+
+#### 标注类型
+
+| 类型 | 说明 | 必需参数 |
+|------|------|----------|
+| `text` | 文字标注 | `position`, `content` |
+| `arrow` | 箭头标注 | `position`, `end_position` |
+| `rectangle` | 矩形框 | `position`, `end_position` |
+| `highlight` | 高亮区域 | `position`, `end_position` |
+| `timestamp` | 时间戳 | `position` |
+
+#### 标注配置选项
+
+```bash
+vtf screenshot-annotate \
+  --input screenshots.json \
+  --annotations annotations.json \
+  --font /path/to/font.ttf \      # 自定义字体
+  --font-size 24 \                 # 字体大小
+  --color "#FF0000" \              # 默认颜色
+  --opacity 0.8 \                  # 透明度 (0-1)
+  --padding 15 \                   # 文字内边距
+  --no-background                  # 不显示文字背景
+```
+
 ### 使用方式
 
 ```bash

@@ -53,6 +53,9 @@ from vtf.commands import (
     screenshot_batch as _screenshot_batch,
 )
 from vtf.commands import (
+    screenshot_annotate as _screenshot_annotate,
+)
+from vtf.commands import (
     transcribe as _transcribe,
 )
 
@@ -93,6 +96,7 @@ main.add_command(_screenshot.cmd, name="screenshot")
 main.add_command(_screenshot_emit.cmd, name="screenshot-emit")
 main.add_command(_screenshot_report.cmd, name="screenshot-report")
 main.add_command(_screenshot_batch.cmd, name="screenshot-batch")
+main.add_command(_screenshot_annotate.cmd, name="screenshot-annotate")
 
 
 if __name__ == "__main__":
