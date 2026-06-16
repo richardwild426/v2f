@@ -4,6 +4,49 @@
 
 ---
 
+## Error Model (general contract)
+
+All errors flow through one hierarchy in `src/vtf/errors.py`. Each exception class carries a
+process **exit code** as a class attribute:
+
+| Class | Exit code | Meaning |
+|-------|-----------|---------|
+| `VtfError` (base) | `EXIT_BUG = 4` | Unexpected / programmer error (default) |
+| `UserError` | `EXIT_USER = 1` | Bad input or usage by the caller |
+| `EnvironmentError` | `EXIT_ENV = 2` | Missing tool / broken environment (e.g. `yt-dlp` not found). Intentionally shadows the builtin (`# noqa: A001`); import as `VtfEnvError` where needed. |
+| `RemoteError` | `EXIT_REMOTE = 3` | A remote/subprocess call failed (yt-dlp, lark-cli, network) |
+
+`EXIT_OK = 0` is success.
+
+### The raise-in-pipeline, catch-in-command rule
+
+- **`pipeline/` and adapter code raise** the appropriate `VtfError` subclass with a clear,
+  actionable **Chinese** message. They never call `sys.exit`, never print, never touch `click`.
+- **`commands/` catch** `VtfError` at the boundary, log it to stderr with the step name, and
+  translate the exception's `exit_code` into `SystemExit`. This is the canonical pattern —
+  copy it verbatim for every new command:
+
+  ```python
+  try:
+      meta = fetch(url=url, cfg=cfg)
+  except VtfError as e:
+      log.error(str(e), step="fetch")
+      raise SystemExit(e.exit_code) from e
+  click.echo(json.dumps(meta, ensure_ascii=False))   # data → stdout only on success
+  ```
+
+### Choosing the right class
+
+- The caller passed something wrong → `UserError`.
+- A required external tool/file is missing or misconfigured → `EnvironmentError`.
+- An external process or remote endpoint failed → `RemoteError` (prefer a shared formatter
+  that appends recovery hints; see the scenario below).
+- You genuinely can't classify it / it's a bug → let it be a plain `VtfError` (exit 4).
+
+Exit-code distinctness and message preservation are regression-tested in `tests/test_errors.py`.
+
+---
+
 ## Scenario: yt-dlp Bilibili HTTP 412 diagnostics
 
 ### 1. Scope / Trigger

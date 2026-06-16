@@ -14,12 +14,12 @@ This directory contains guidelines for backend development. Fill in each file wi
 
 | Guide | Description | Status |
 |-------|-------------|--------|
-| [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
-| [Database Guidelines](./database-guidelines.md) | ORM patterns, queries, migrations | To fill |
-| [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |
+| [Directory Structure](./directory-structure.md) | Layered package layout (commands → pipeline → adapters) | Active |
+| [Database Guidelines](./database-guidelines.md) | No DB; file/JSON-based persistence conventions | Active |
+| [Error Handling](./error-handling.md) | VtfError hierarchy, exit codes, raise/catch boundary | Active |
 | [Feishu Schema Contract](./feishu-schema-contract.md) | Schema-backed analysis guidance and emit validation | Active |
-| [Quality Guidelines](./quality-guidelines.md) | Code standards, forbidden patterns | To fill |
-| [Logging Guidelines](./logging-guidelines.md) | Structured logging, log levels | To fill |
+| [Quality Guidelines](./quality-guidelines.md) | ruff / mypy-strict / pytest standards, forbidden patterns | Active |
+| [Logging Guidelines](./logging-guidelines.md) | stderr Logger, levels, stdout-is-data rule | Active |
 
 ---
 
