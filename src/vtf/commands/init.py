@@ -18,6 +18,7 @@ from vtf.config import (
 )
 from vtf.errors import EnvironmentError as VtfEnvError
 from vtf.errors import RemoteError, UserError, VtfError
+from vtf.sinks.schema import StoryboardSchema, load_schema_fields, load_storyboard_schema
 
 
 @click.group(name="init", help="一次性配置向导（目前支持 feishu）")
@@ -66,10 +67,17 @@ def feishu_cmd(
         schema_file = resolve_feishu_schema_path(cfg, raw_schema if schema_path else None)
         if not schema_file.exists():
             raise UserError(f"schema 文件不存在: {schema_file}")
-        fields_def = _load_schema_fields(schema_file)
+        fields_def, storyboard = _load_schema_tables(schema_file)
 
         if f.base_token and not recreate:
-            _sync_existing_table(lark, f, fields_def)
+            _sync_existing_table(
+                lark,
+                f,
+                fields_def,
+                storyboard=storyboard,
+                schema_file=schema_file,
+                write_config=write_config,
+            )
             return
 
         # 没 base_token，或 --recreate：建 base + table + 全部字段
@@ -80,6 +88,7 @@ def feishu_cmd(
             table_name=table_name,
             folder_token=folder_token,
             fields_def=fields_def,
+            storyboard=storyboard,
             schema_file=schema_file,
             write_config=write_config,
         )
@@ -125,11 +134,10 @@ def _require_lark_cli_bound(cfg: Any) -> str:
     return lark
 
 
-def _load_schema_fields(schema_file: Path) -> list[dict[str, Any]]:
-    schema = tomllib.loads(schema_file.read_text("utf-8"))
-    items = schema.get("fields", [])
-    if not items:
-        raise UserError(f"schema 无 fields 定义: {schema_file}")
+def _load_schema_tables(
+    schema_file: Path,
+) -> tuple[list[dict[str, Any]], StoryboardSchema | None]:
+    items = load_schema_fields(schema_file)
     out: list[dict[str, Any]] = []
     for fdef in items:
         name = fdef.get("name", "")
@@ -139,7 +147,7 @@ def _load_schema_fields(schema_file: Path) -> list[dict[str, Any]]:
         out.append({"name": name, "type": ftype})
     if not out:
         raise UserError(f"schema 解析后字段列表为空: {schema_file}")
-    return out
+    return out, load_storyboard_schema(schema_file)
 
 
 def _create_new_base_and_table(
@@ -150,6 +158,7 @@ def _create_new_base_and_table(
     table_name: str,
     folder_token: str,
     fields_def: list[dict[str, Any]],
+    storyboard: StoryboardSchema | None,
     schema_file: Path,
     write_config: bool,
 ) -> None:
@@ -199,16 +208,31 @@ def _create_new_base_and_table(
         raise RemoteError(f"建 table 成功但未返回 table_id: {table_resp}")
     click.echo(f"  ✅ table_id = {table_id}")
 
+    storyboard_table_id = ""
+    if storyboard is not None:
+        storyboard_table_id = _create_storyboard_table(
+            lark=lark,
+            f=f,
+            base_token=base_token,
+            main_table_id=table_id,
+            storyboard=storyboard,
+        )
+
     if write_config:
         _patch_user_config(
-            base_token=base_token, table_id=table_id, schema=str(schema_file)
+            base_token=base_token,
+            table_id=table_id,
+            schema=str(schema_file),
+            storyboard_table_id=storyboard_table_id or None,
         )
         click.echo(f"  ✅ 已写入 {default_user_path()}")
     else:
-        click.echo("  ⚠️  --no-write-config: 请手动把以下三行加到 ~/.config/vtf/config.toml")
+        click.echo("  ⚠️  --no-write-config: 请手动把以下配置加到 ~/.config/vtf/config.toml")
         click.echo("       [sink.feishu]")
         click.echo(f'       base_token = "{base_token}"')
         click.echo(f'       table_id = "{table_id}"')
+        if storyboard_table_id:
+            click.echo(f'       storyboard_table_id = "{storyboard_table_id}"')
         click.echo(f'       schema = "{schema_file}"')
 
     click.echo("")
@@ -221,8 +245,57 @@ def _create_new_base_and_table(
     click.echo("完成后，跑 `vtf doctor` 验证；之后即可 sink=feishu 写入。")
 
 
+def _create_storyboard_table(
+    *,
+    lark: str,
+    f: Any,
+    base_token: str,
+    main_table_id: str,
+    storyboard: StoryboardSchema,
+) -> str:
+    fields_def = _storyboard_field_defs(storyboard)
+    click.echo(
+        f"正在建子表「{storyboard.table_name}」并一次性建 {len(fields_def)} 个字段..."
+    )
+    table_resp = _run_lark(
+        lark,
+        [
+            "base",
+            "+table-create",
+            "--as",
+            f.identity,
+            "--base-token",
+            base_token,
+            "--name",
+            storyboard.table_name,
+            "--fields",
+            json.dumps(fields_def, ensure_ascii=False),
+        ],
+        timeout=60,
+    )
+    table_id = ((table_resp.get("data") or {}).get("table") or {}).get("table_id", "")
+    if not table_id:
+        raise RemoteError(f"建子表成功但未返回 table_id: {table_resp}")
+    click.echo(f"  ✅ storyboard_table_id = {table_id}")
+    _create_storyboard_link_field(
+        lark=lark,
+        f=f,
+        base_token=base_token,
+        storyboard_table_id=table_id,
+        main_table_id=main_table_id,
+        storyboard=storyboard,
+    )
+    return str(table_id)
+
+
 def _sync_existing_table(
-    lark: str, f: Any, fields_def: list[dict[str, Any]]
+    lark: str,
+    f: Any,
+    fields_def: list[dict[str, Any]],
+    *,
+    storyboard: StoryboardSchema | None,
+    schema_file: Path,
+    write_config: bool,
 ) -> None:
     if not f.table_id:
         raise UserError(
@@ -263,6 +336,103 @@ def _sync_existing_table(
             click.echo(f"    - {name}: schema={schema_type}, 飞书表格={existing_type}")
         click.echo("    如需对齐，请在飞书表格里手动改字段类型，或手动 +field-update")
 
+    if storyboard is not None:
+        storyboard_table_id = _sync_storyboard_table(
+            lark=lark,
+            f=f,
+            storyboard=storyboard,
+        )
+        if write_config and storyboard_table_id != getattr(f, "storyboard_table_id", ""):
+            _patch_user_config(
+                base_token=f.base_token,
+                table_id=f.table_id,
+                schema=str(schema_file),
+                storyboard_table_id=storyboard_table_id,
+            )
+            click.echo(f"  ✅ 已写入 storyboard_table_id 到 {default_user_path()}")
+
+
+def _sync_storyboard_table(
+    *,
+    lark: str,
+    f: Any,
+    storyboard: StoryboardSchema,
+) -> str:
+    table_id = getattr(f, "storyboard_table_id", "") or _find_table_id_by_name(
+        lark, f, storyboard.table_name
+    )
+    if not table_id:
+        click.echo(f"未找到子表「{storyboard.table_name}」，开始创建...")
+        return _create_storyboard_table(
+            lark=lark,
+            f=f,
+            base_token=f.base_token,
+            main_table_id=f.table_id,
+            storyboard=storyboard,
+        )
+
+    click.echo(
+        f"检测到 storyboard_table_id={table_id}，同步子表「{storyboard.table_name}」字段..."
+    )
+    existing = _list_existing_fields(lark, f, table_id=table_id)
+    existing_names = {item.get("name", "") for item in existing}
+
+    for fdef in _storyboard_field_defs(storyboard):
+        name = fdef["name"]
+        if name in existing_names:
+            continue
+        click.echo(f"  + 创建子表字段「{name}」(type={fdef['type']})...")
+        _create_field(lark, f, name, fdef["type"], table_id=table_id)
+
+    if storyboard.link_field not in existing_names:
+        _create_storyboard_link_field(
+            lark=lark,
+            f=f,
+            base_token=f.base_token,
+            storyboard_table_id=table_id,
+            main_table_id=f.table_id,
+            storyboard=storyboard,
+        )
+    else:
+        click.echo(f"  ✅ 子表关联字段「{storyboard.link_field}」已存在")
+    return str(table_id)
+
+
+def _storyboard_field_defs(storyboard: StoryboardSchema) -> list[dict[str, Any]]:
+    return [
+        {"name": str(field["name"]), "type": str(field.get("type", "text"))}
+        for field in storyboard.fields
+    ]
+
+
+def _create_storyboard_link_field(
+    *,
+    lark: str,
+    f: Any,
+    base_token: str,
+    storyboard_table_id: str,
+    main_table_id: str,
+    storyboard: StoryboardSchema,
+) -> None:
+    payload = {
+        "name": storyboard.link_field,
+        "type": "link",
+        "link_table": main_table_id,
+        "bidirectional": True,
+        "bidirectional_link_field_name": storyboard.master_link_field,
+    }
+    click.echo(
+        f"  + 创建子表关联字段「{storyboard.link_field}」"
+        f"（主表反向字段「{storyboard.master_link_field}」）..."
+    )
+    _create_field_payload(
+        lark,
+        f,
+        payload,
+        base_token=base_token,
+        table_id=storyboard_table_id,
+    )
+
 
 # ----- lark-cli 调用辅助 --------------------------------------------------------
 
@@ -297,7 +467,44 @@ def _run_lark(lark: str, args: list[str], *, timeout: int) -> dict[str, Any]:
     return cast(dict[str, Any], resp)
 
 
-def _list_existing_fields(lark: str, f: Any) -> list[dict[str, Any]]:
+def _list_existing_tables(lark: str, f: Any) -> list[dict[str, Any]]:
+    resp = _run_lark(
+        lark,
+        [
+            "base",
+            "+table-list",
+            "--as",
+            f.identity,
+            "--base-token",
+            f.base_token,
+            "--limit",
+            "100",
+        ],
+        timeout=30,
+    )
+    data = resp.get("data") or {}
+    items = data.get("items") or data.get("tables") or []
+    out: list[dict[str, Any]] = []
+    for it in items:
+        out.append(
+            {
+                "table_id": it.get("table_id") or it.get("id", ""),
+                "table_name": it.get("table_name") or it.get("name", ""),
+            }
+        )
+    return out
+
+
+def _find_table_id_by_name(lark: str, f: Any, table_name: str) -> str:
+    for table in _list_existing_tables(lark, f):
+        if table.get("table_name") == table_name:
+            return str(table.get("table_id") or "")
+    return ""
+
+
+def _list_existing_fields(
+    lark: str, f: Any, *, table_id: str | None = None
+) -> list[dict[str, Any]]:
     resp = _run_lark(
         lark,
         [
@@ -308,7 +515,7 @@ def _list_existing_fields(lark: str, f: Any) -> list[dict[str, Any]]:
             "--base-token",
             f.base_token,
             "--table-id",
-            f.table_id,
+            table_id or f.table_id,
             "--limit",
             "100",
         ],
@@ -327,8 +534,26 @@ def _list_existing_fields(lark: str, f: Any) -> list[dict[str, Any]]:
     return out
 
 
-def _create_field(lark: str, f: Any, name: str, ftype: str) -> None:
+def _create_field(
+    lark: str,
+    f: Any,
+    name: str,
+    ftype: str,
+    *,
+    table_id: str | None = None,
+) -> None:
     payload = {"name": name, "type": ftype}
+    _create_field_payload(lark, f, payload, table_id=table_id)
+
+
+def _create_field_payload(
+    lark: str,
+    f: Any,
+    payload: dict[str, Any],
+    *,
+    base_token: str | None = None,
+    table_id: str | None = None,
+) -> None:
     _run_lark(
         lark,
         [
@@ -337,9 +562,9 @@ def _create_field(lark: str, f: Any, name: str, ftype: str) -> None:
             "--as",
             f.identity,
             "--base-token",
-            f.base_token,
+            base_token or f.base_token,
             "--table-id",
-            f.table_id,
+            table_id or f.table_id,
             "--json",
             json.dumps(payload, ensure_ascii=False),
         ],
@@ -350,7 +575,13 @@ def _create_field(lark: str, f: Any, name: str, ftype: str) -> None:
 # ----- 配置文件回写（仅 patch [sink.feishu]，保留其它段；不引入额外依赖） ------------
 
 
-def _patch_user_config(*, base_token: str, table_id: str, schema: str) -> None:
+def _patch_user_config(
+    *,
+    base_token: str,
+    table_id: str,
+    schema: str,
+    storyboard_table_id: str | None = None,
+) -> None:
     path = default_user_path()
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -363,6 +594,8 @@ def _patch_user_config(*, base_token: str, table_id: str, schema: str) -> None:
     feishu = sink.setdefault("feishu", {})
     feishu["base_token"] = base_token
     feishu["table_id"] = table_id
+    if storyboard_table_id is not None:
+        feishu["storyboard_table_id"] = storyboard_table_id
     feishu["schema"] = schema
     # 同时切到 feishu sink，免得用户还要手动改 [output]
     output = existing.setdefault("output", {})

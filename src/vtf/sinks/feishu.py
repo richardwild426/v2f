@@ -9,7 +9,13 @@ from vtf.config import resolve_feishu_schema_path, resolve_lark_cli
 from vtf.errors import EnvironmentError as VtfEnvError
 from vtf.errors import RemoteError, UserError
 from vtf.sinks.base import EmitOutcome
-from vtf.sinks.schema import load_schema_fields, missing_required_fields, render_field
+from vtf.sinks.schema import (
+    StoryboardSchema,
+    load_schema_fields,
+    load_storyboard_schema,
+    missing_required_fields,
+    render_field,
+)
 
 
 class Feishu:
@@ -25,6 +31,13 @@ class Feishu:
             return (False, "缺少 schema 文件路径; 请运行 vtf init feishu")
         if f.identity not in ("bot", "user"):
             return (False, f"sink.feishu.identity 取值非法: {f.identity!r}; 仅支持 bot 或 user")
+        schema_path = resolve_feishu_schema_path(cfg)
+        if (
+            schema_path.exists()
+            and load_storyboard_schema(schema_path) is not None
+            and not getattr(f, "storyboard_table_id", "")
+        ):
+            return (False, "缺少 storyboard_table_id; 请运行 vtf init feishu")
         if not resolve_lark_cli(cfg):
             return (False, "lark-cli 未找到; 参考 README 安装 lark-cli")
         return (True, "")
@@ -44,10 +57,12 @@ class Feishu:
             raise UserError(f"schema 文件不存在: {schema_path}")
 
         fields_def = load_schema_fields(schema_path)
+        storyboard = load_storyboard_schema(schema_path)
         missing = missing_required_fields(result, fields_def)
         if missing:
             details = ", ".join(f"{item.name}({item.source})" for item in missing)
             raise UserError(f"缺少飞书必填字段内容，已停止写入: {details}")
+        storyboard_rows = self._render_storyboard_rows(result, f, storyboard)
 
         names: list[str] = []
         row: list[Any] = []
@@ -71,6 +86,9 @@ class Feishu:
 
         record_id = self._batch_create(lark, f, names, row)
 
+        if storyboard is not None and storyboard_rows:
+            self._batch_create_storyboard(lark, f, storyboard, record_id, storyboard_rows)
+
         attachment_msgs: list[str] = []
         for field_name, file_path_str in attachments:
             attachment_msgs.append(
@@ -85,7 +103,20 @@ class Feishu:
     def _batch_create(
         self, lark: str, f: Any, names: list[str], row: list[Any]
     ) -> str:
-        payload = {"fields": names, "rows": [row]}
+        record_ids = self._batch_create_rows(lark, f, f.table_id, names, [row])
+        if not record_ids:
+            raise RemoteError("飞书 API 未返回 record_id，无法继续上传附件")
+        return record_ids[0]
+
+    def _batch_create_rows(
+        self,
+        lark: str,
+        f: Any,
+        table_id: str,
+        names: list[str],
+        rows: list[list[Any]],
+    ) -> list[str]:
+        payload = {"fields": names, "rows": rows}
         cmd = [
             lark,
             "base",
@@ -95,7 +126,7 @@ class Feishu:
             "--base-token",
             f.base_token,
             "--table-id",
-            f.table_id,
+            table_id,
             "--json",
             json.dumps(payload, ensure_ascii=False),
         ]
@@ -138,10 +169,63 @@ class Feishu:
 
         data = resp.get("data") or {}
         records = data.get("records") or []
-        if not records:
-            raise RemoteError("飞书 API 未返回 record_id，无法继续上传附件")
-        first: dict[str, Any] = cast(dict[str, Any], records[0])
-        return cast(str, first.get("record_id", ""))
+        if records:
+            return [
+                str(cast(dict[str, Any], item).get("record_id", ""))
+                for item in records
+                if cast(dict[str, Any], item).get("record_id")
+            ]
+        return [str(item) for item in data.get("record_id_list", []) if item]
+
+    def _render_storyboard_rows(
+        self,
+        result: dict[str, Any],
+        f: Any,
+        storyboard: StoryboardSchema | None,
+    ) -> list[list[Any]]:
+        if storyboard is None:
+            return []
+        if not getattr(f, "storyboard_table_id", ""):
+            raise UserError("缺少 storyboard_table_id; 请运行 vtf init feishu")
+
+        raw_rows = render_field(result, storyboard.rows_source)
+        if not isinstance(raw_rows, list) or not raw_rows:
+            raise UserError(
+                "缺少飞书子表分镜内容，已停止写入: "
+                f"{storyboard.table_name}({storyboard.rows_source})"
+            )
+
+        rows: list[list[Any]] = []
+        for index, raw_row in enumerate(raw_rows, start=1):
+            if not isinstance(raw_row, dict):
+                raise UserError(
+                    f"飞书子表分镜第 {index} 行必须是对象: {storyboard.rows_source}"
+                )
+            row: list[Any] = []
+            for field in storyboard.fields:
+                value = render_field(raw_row, str(field.get("source", "")))
+                row.append(value if value is not None else "")
+            rows.append(row)
+        return rows
+
+    def _batch_create_storyboard(
+        self,
+        lark: str,
+        f: Any,
+        storyboard: StoryboardSchema,
+        record_id: str,
+        rendered_rows: list[list[Any]],
+    ) -> None:
+        names = [storyboard.link_field, *[str(field["name"]) for field in storyboard.fields]]
+        rows = [[[{"id": record_id}], *row] for row in rendered_rows]
+        for start in range(0, len(rows), 200):
+            self._batch_create_rows(
+                lark,
+                f,
+                f.storyboard_table_id,
+                names,
+                rows[start : start + 200],
+            )
 
     # 飞书附件单文件上限 2GB；留 100MB 余量避免临界报错
     _ATTACHMENT_MAX_BYTES = 1900 * 1024 * 1024

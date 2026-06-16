@@ -7,4 +7,14 @@
 文案:
 {{ lines }}
 
-请输出 JSON,包含字段:hook、core、cta、pros、suggestions、text(可选,完整说明)。
+请输出 JSON,包含字段:hook、core、cta、pros、suggestions、text(可选,完整说明)、shots。
+
+shots 是逐镜头分镜明细数组，每个元素包含：
+- shot: 镜头序号
+- duration: 镜头时长
+- script: 镜头文案
+- appearance: 出镜类型，例如 人 / AI / 电脑 / 手机 / 屏幕录制
+- materials: 素材数组
+- sound: 音效或音乐
+- motion: 动效或画面运动
+- notes: 备注

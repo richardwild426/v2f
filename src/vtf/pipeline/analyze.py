@@ -8,7 +8,9 @@ from vtf.prompts import load_prompt, render_prompt
 from vtf.sinks.schema import (
     RequiredAnalysisField,
     load_schema_fields,
+    load_storyboard_schema,
     required_analysis_fields,
+    storyboard_required_analysis_field,
 )
 
 _KINDS = {"summary", "breakdown", "rewrite"}
@@ -68,7 +70,12 @@ def _downstream_fields(kind: str, cfg: Any) -> list[RequiredAnalysisField]:
     if not schema_path.exists():
         return []
     fields_def = load_schema_fields(schema_path)
-    return required_analysis_fields(fields_def, kind)
+    out = required_analysis_fields(fields_def, kind)
+    storyboard = load_storyboard_schema(schema_path)
+    storyboard_field = storyboard_required_analysis_field(storyboard, kind)
+    if storyboard_field is not None:
+        out.append(storyboard_field)
+    return out
 
 
 def _schema_hint(kind: str, fields: list[RequiredAnalysisField]) -> str:

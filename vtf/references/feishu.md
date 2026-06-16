@@ -28,6 +28,7 @@ vtf init feishu
 ```
 
 会自动创建 base + table，按 schema 建好全部字段，并回写 `~/.config/vtf/config.toml`。
+默认 `baokuan.toml` 还会创建一个「分镜明细」子表，用子表记录每个视频的逐镜头分镜数据。
 
 输出示例：
 
@@ -35,12 +36,13 @@ vtf init feishu
 ✅ base_token = bascn...
    URL: https://feishu.cn/base/...
 ✅ table_id = tbl...
+✅ storyboard_table_id = tbl...
 ✅ 已写入 ~/.config/vtf/config.toml
 
 ⚠️  下一步（必须人工完成）：把机器人加为 base 协作者并授予「可编辑」权限
 ```
 
-**已有 base_token 但字段不全？** 同样跑 `vtf init feishu`，会自动检测缺失字段并补齐（追加在表末尾）。
+**已有 base_token 但字段不全？** 同样跑 `vtf init feishu`，会自动检测缺失字段并补齐（追加在表末尾）。如果默认 schema 的子表不存在，也会创建「分镜明细」并把 `storyboard_table_id` 写回配置。
 
 ## 步骤 3：人工授权（飞书未开放该 OpenAPI）
 
@@ -69,6 +71,7 @@ vtf doctor
 [sink.feishu]
 base_token = "bascn..."    # 飞书多维表格 token
 table_id = "tbl..."        # 数据表 ID
+storyboard_table_id = "tbl..."  # 分镜明细子表 ID；默认 schema 必需
 schema = "assets/schemas/baokuan.toml"  # 字段映射文件
 identity = "bot"           # bot（推荐）或 user
 ```
@@ -109,6 +112,20 @@ source = "meta.title"  # 数据路径（点号分隔）
 - `lines | joined` — 数组用 `\n` 连接
 - `analyses.summary.tags | tags_hashtag` — 数组用空格连接
 - `meta | stats_compact` — 统计数据格式化
+
+### 主表与分镜子表
+
+默认 schema 通过 `[storyboard]` 定义一个子表：
+
+```toml
+[storyboard]
+table_name = "分镜明细"
+rows_source = "analyses.breakdown.shots"
+link_field = "所属视频"
+master_link_field = "脚本拆解"
+```
+
+`vtf init feishu` 会先创建主表，再创建「分镜明细」子表，并在子表上创建 `所属视频` 关联字段。这个字段启用双向关联后，飞书会在主表生成反向字段 `脚本拆解`。`vtf emit` 写入时先创建主表视频记录，再把 `analyses.breakdown.shots` 的每个元素写成一条子表记录，并用主表 `record_id` 填入 `所属视频`。
 
 ### 写入前完整性校验
 

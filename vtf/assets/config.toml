@@ -40,6 +40,8 @@ template = ""
 # 飞书表格配置（通过环境变量或直接填写）
 base_token = ""
 table_id = ""
+# 子表 ID；默认 schema 会用它写入逐镜头分镜明细
+storyboard_table_id = ""
 # 字段 schema 文件路径；相对路径优先解析到随包附带的 vtf/assets 目录
 schema = "assets/schemas/baokuan.toml"
 # lark-cli 命令名（可替换）

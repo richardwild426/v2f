@@ -28,6 +28,35 @@ def _configured_cfg(tmp_path, identity: str = "bot") -> Config:
     return cfg
 
 
+def _storyboard_cfg(tmp_path) -> Config:
+    schema = tmp_path / "storyboard.toml"
+    schema.write_text(
+        '[[fields]]\nname = "标题"\ntype = "text"\nsource = "meta.title"\n\n'
+        '[storyboard]\n'
+        'table_name = "分镜明细"\n'
+        'rows_source = "analyses.breakdown.shots"\n'
+        'link_field = "所属视频"\n'
+        'master_link_field = "脚本拆解"\n\n'
+        '[[storyboard.fields]]\n'
+        'name = "镜头"\n'
+        'type = "number"\n'
+        'source = "shot"\n\n'
+        '[[storyboard.fields]]\n'
+        'name = "素材"\n'
+        'type = "text"\n'
+        'source = "materials | joined"\n',
+        encoding="utf-8",
+    )
+    cfg = Config()
+    cfg.sink.feishu.base_token = "tok"
+    cfg.sink.feishu.table_id = "tblMain"
+    cfg.sink.feishu.storyboard_table_id = "tblShots"
+    cfg.sink.feishu.schema = str(schema)
+    cfg.sink.feishu.identity = "bot"
+    cfg.sink.feishu.lark_cli = "/fake/lark-cli"
+    return cfg
+
+
 def test_feishu_not_available_without_config():
     f = Feishu()
     cfg = Config()
@@ -145,6 +174,98 @@ def test_emit_allows_missing_optional_metadata_field(tmp_path):
     payload = json.loads(run_mock.call_args.args[0][run_mock.call_args.args[0].index("--json") + 1])
     assert payload["fields"] == ["分享数"]
     assert payload["rows"] == [[""]]
+
+
+def test_emit_writes_storyboard_rows_linked_to_main_record(tmp_path):
+    cfg = _storyboard_cfg(tmp_path)
+    result = {
+        "meta": _meta(title="Video A"),
+        "analyses": {
+            "breakdown": {
+                "shots": [
+                    {"shot": 1, "materials": ["cover", "screen"]},
+                    {"shot": 2, "materials": ["demo"]},
+                ]
+            }
+        },
+    }
+    main_resp = subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout=json.dumps(
+            {"ok": True, "data": {"records": [{"record_id": "recMain"}]}}
+        ),
+        stderr="",
+    )
+    storyboard_resp = subprocess.CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout=json.dumps(
+            {"ok": True, "data": {"records": [{"record_id": "recShot"}]}}
+        ),
+        stderr="",
+    )
+
+    with patch(
+        "vtf.sinks.feishu.subprocess.run",
+        side_effect=[main_resp, storyboard_resp],
+    ) as run_mock:
+        outcome = Feishu().emit(result, cfg)
+
+    main_cmd = run_mock.call_args_list[0].args[0]
+    main_payload = json.loads(main_cmd[main_cmd.index("--json") + 1])
+    assert main_cmd[main_cmd.index("--table-id") + 1] == "tblMain"
+    assert main_payload == {"fields": ["标题"], "rows": [["Video A"]]}
+
+    storyboard_cmd = run_mock.call_args_list[1].args[0]
+    storyboard_payload = json.loads(
+        storyboard_cmd[storyboard_cmd.index("--json") + 1]
+    )
+    assert storyboard_cmd[storyboard_cmd.index("--table-id") + 1] == "tblShots"
+    assert storyboard_payload == {
+        "fields": ["所属视频", "镜头", "素材"],
+        "rows": [
+            [[{"id": "recMain"}], 1, "cover\nscreen"],
+            [[{"id": "recMain"}], 2, "demo"],
+        ],
+    }
+    assert "recMain" in outcome.reason
+
+
+def test_emit_rejects_missing_storyboard_table_id(tmp_path):
+    cfg = _storyboard_cfg(tmp_path)
+    cfg.sink.feishu.storyboard_table_id = ""
+
+    with (
+        patch("vtf.sinks.feishu.subprocess.run") as run_mock,
+        pytest.raises(UserError, match="storyboard_table_id"),
+    ):
+        Feishu().emit(
+            {
+                "meta": _meta(),
+                "analyses": {"breakdown": {"shots": [{"shot": 1}]}},
+            },
+            cfg,
+        )
+
+    assert not run_mock.called
+
+
+def test_emit_rejects_empty_storyboard_rows_before_remote_call(tmp_path):
+    cfg = _storyboard_cfg(tmp_path)
+
+    with (
+        patch("vtf.sinks.feishu.subprocess.run") as run_mock,
+        pytest.raises(UserError) as exc,
+    ):
+        Feishu().emit(
+            {"meta": _meta(), "analyses": {"breakdown": {"shots": []}}},
+            cfg,
+        )
+
+    assert not run_mock.called
+    assert "分镜明细" in str(exc.value)
+    assert "analyses.breakdown.shots" in str(exc.value)
 
 
 def test_emit_no_permission_error_includes_collaborator_hint(tmp_path):

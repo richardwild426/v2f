@@ -2,10 +2,12 @@ import pytest
 
 from vtf.sinks.schema import (
     is_required_field,
+    load_storyboard_schema,
     missing_required_fields,
     render_field,
     required_analysis_fields,
     resolve_path,
+    storyboard_required_analysis_field,
 )
 
 RESULT = {
@@ -91,3 +93,51 @@ def test_required_analysis_fields_for_kind():
         ("摘要", "text"),
         ("标签", "tags"),
     ]
+
+
+def test_load_storyboard_schema(tmp_path):
+    schema = tmp_path / "s.toml"
+    schema.write_text(
+        '[[fields]]\nname = "标题"\ntype = "text"\nsource = "meta.title"\n\n'
+        '[storyboard]\n'
+        'table_name = "分镜明细"\n'
+        'rows_source = "analyses.breakdown.shots"\n'
+        'link_field = "所属视频"\n'
+        'master_link_field = "脚本拆解"\n\n'
+        '[[storyboard.fields]]\n'
+        'name = "镜头"\n'
+        'type = "number"\n'
+        'source = "shot"\n',
+        encoding="utf-8",
+    )
+
+    storyboard = load_storyboard_schema(schema)
+
+    assert storyboard is not None
+    assert storyboard.table_name == "分镜明细"
+    assert storyboard.rows_source == "analyses.breakdown.shots"
+    assert storyboard.link_field == "所属视频"
+    assert storyboard.master_link_field == "脚本拆解"
+    assert storyboard.fields == [{"name": "镜头", "type": "number", "source": "shot"}]
+
+
+def test_storyboard_required_analysis_field_for_kind(tmp_path):
+    schema = tmp_path / "s.toml"
+    schema.write_text(
+        '[[fields]]\nname = "标题"\ntype = "text"\nsource = "meta.title"\n\n'
+        '[storyboard]\n'
+        'rows_source = "analyses.breakdown.shots"\n\n'
+        '[[storyboard.fields]]\n'
+        'name = "镜头"\n'
+        'source = "shot"\n',
+        encoding="utf-8",
+    )
+    storyboard = load_storyboard_schema(schema)
+
+    required = storyboard_required_analysis_field(storyboard, "breakdown")
+
+    assert required is not None
+    assert required.name == "分镜明细"
+    assert required.source == "analyses.breakdown.shots"
+    assert required.result_path == "shots"
+    assert storyboard_required_analysis_field(storyboard, "summary") is None

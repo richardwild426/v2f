@@ -44,6 +44,7 @@ template = ""  # 自定义模板路径，留空使用内置模板
 [sink.feishu]
 base_token = ""
 table_id = ""
+storyboard_table_id = ""
 schema = "assets/schemas/baokuan.toml"
 lark_cli = "lark-cli"
 identity = "bot"  # bot 或 user
@@ -77,6 +78,7 @@ rewrite = ""
 | `VTF_SINK_MARKDOWN_TEMPLATE` | sink.markdown.template | string |
 | `VTF_SINK_FEISHU_BASE_TOKEN` | sink.feishu.base_token | string |
 | `VTF_SINK_FEISHU_TABLE_ID` | sink.feishu.table_id | string |
+| `VTF_SINK_FEISHU_STORYBOARD_TABLE_ID` | sink.feishu.storyboard_table_id | string |
 | `VTF_SINK_FEISHU_SCHEMA` | sink.feishu.schema | string |
 | `VTF_SINK_FEISHU_LARK_CLI` | sink.feishu.lark_cli | string |
 | `VTF_SINK_FEISHU_IDENTITY` | sink.feishu.identity | string |

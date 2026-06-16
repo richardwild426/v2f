@@ -60,6 +60,7 @@ class SinkMarkdown:
 class SinkFeishu:
     base_token: str = ""
     table_id: str = ""
+    storyboard_table_id: str = ""
     schema: str = DEFAULT_FEISHU_SCHEMA
     lark_cli: str = "lark-cli"
     identity: str = "bot"

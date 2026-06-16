@@ -98,3 +98,108 @@ if missing:
 ```
 
 Validate schema-backed analysis content before any remote write.
+
+---
+
+## Scenario: Storyboard child table for per-shot breakdown
+
+### 1. Scope / Trigger
+
+- Trigger: Changes that touch the default Feishu schema, `vtf init feishu`, `vtf analyze --kind breakdown`, or `vtf emit` child-table writes.
+- Reason: The Feishu Base model can include a master video table plus a child table for per-shot storyboard rows. This is a cross-layer contract: TOML schema -> prompt guidance -> config -> Base table creation -> record write payloads.
+
+### 2. Signatures
+
+- `load_storyboard_schema(schema_path: Path) -> StoryboardSchema | None`
+- `storyboard_required_analysis_field(storyboard, kind) -> RequiredAnalysisField | None`
+- `vtf init feishu [--schema path] [--recreate]`
+- `vtf emit < result.json`
+- Config key: `sink.feishu.storyboard_table_id`
+- Env key: `VTF_SINK_FEISHU_STORYBOARD_TABLE_ID`
+
+### 3. Contracts
+
+- A schema may define one optional child table:
+
+```toml
+[storyboard]
+table_name = "分镜明细"
+rows_source = "analyses.breakdown.shots"
+link_field = "所属视频"
+master_link_field = "脚本拆解"
+
+[[storyboard.fields]]
+name = "镜头"
+type = "number"
+source = "shot"
+```
+
+- If `[storyboard]` is absent, custom schemas keep the legacy single-table behavior.
+- `vtf analyze --kind breakdown` must include `shots` in `required_result_fields` when `rows_source = "analyses.breakdown.shots"`.
+- `vtf init feishu` must create or sync the child table, then create a child-table `link` field:
+
+```json
+{
+  "name": "所属视频",
+  "type": "link",
+  "link_table": "tbl_main",
+  "bidirectional": true,
+  "bidirectional_link_field_name": "脚本拆解"
+}
+```
+
+- `vtf emit` writes the main record first, then writes child rows to `storyboard_table_id`.
+- Child row link values must use Feishu record link shape:
+
+```json
+[{ "id": "rec_main" }]
+```
+
+### 4. Validation & Error Matrix
+
+| Condition | Behavior |
+|---|---|
+| `[storyboard]` exists but `rows_source` is empty | Raise `UserError("schema storyboard 缺少 rows_source: ...")` |
+| `[storyboard]` exists but no usable fields are defined | Raise `UserError("schema storyboard ... fields ...")` |
+| Schema has storyboard but config has no `storyboard_table_id` at emit time | Raise `UserError("缺少 storyboard_table_id; 请运行 vtf init feishu")` before remote writes |
+| `rows_source` renders as missing, non-list, or empty list | Raise `UserError("缺少飞书子表分镜内容，已停止写入: 分镜明细(analyses.breakdown.shots)")` before remote writes |
+| A storyboard row is not an object | Raise `UserError("飞书子表分镜第 N 行必须是对象: ...")` before remote writes |
+
+### 5. Good / Base / Bad Cases
+
+- Good: Default `baokuan.toml` creates a main table plus `分镜明细`; `vtf emit` writes the main record and child rows linked by `所属视频`.
+- Base: A custom schema without `[storyboard]` creates and writes only the main table, preserving existing behavior.
+- Bad: `analyses.breakdown.shots` is `[]`; emit stops before creating a partial main record.
+
+### 6. Tests Required
+
+- Schema tests for `load_storyboard_schema` and `storyboard_required_analysis_field`.
+- Analyze test that breakdown advertises `shots` when storyboard is configured.
+- Init test that default packaged schema creates child table and link field, and writes `storyboard_table_id`.
+- Init test that existing bases can create a missing child table during sync.
+- Emit test that child rows include `所属视频 = [{"id": main_record_id}]`.
+- Emit regression tests for missing `storyboard_table_id` and empty `shots`.
+
+### 7. Wrong vs Correct
+
+#### Wrong
+
+```toml
+[[fields]]
+name = "脚本拆解"
+type = "link"
+source = "analyses.breakdown.shots"
+```
+
+This tries to model per-shot data as one main-table field and cannot store one row per shot.
+
+#### Correct
+
+```toml
+[storyboard]
+rows_source = "analyses.breakdown.shots"
+link_field = "所属视频"
+master_link_field = "脚本拆解"
+```
+
+The child table owns the per-shot rows. Its link field points to the main table and lets Feishu generate the main-table reverse field.

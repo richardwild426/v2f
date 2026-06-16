@@ -143,3 +143,49 @@ source = "meta.upload_date"
 name = "提取时间"
 type = "datetime"
 source = "meta.extract_time"
+
+[storyboard]
+table_name = "分镜明细"
+rows_source = "analyses.breakdown.shots"
+link_field = "所属视频"
+master_link_field = "脚本拆解"
+
+[[storyboard.fields]]
+name = "镜头"
+type = "number"
+source = "shot"
+
+[[storyboard.fields]]
+name = "时长"
+type = "text"
+source = "duration"
+
+[[storyboard.fields]]
+name = "文案"
+type = "text"
+source = "script"
+
+[[storyboard.fields]]
+name = "出镜类型"
+type = "text"
+source = "appearance"
+
+[[storyboard.fields]]
+name = "素材"
+type = "text"
+source = "materials | joined"
+
+[[storyboard.fields]]
+name = "音效"
+type = "text"
+source = "sound"
+
+[[storyboard.fields]]
+name = "动效"
+type = "text"
+source = "motion"
+
+[[storyboard.fields]]
+name = "备注"
+type = "text"
+source = "notes"

@@ -27,6 +27,25 @@ def schema_file(tmp_path: Path) -> Path:
     return p
 
 
+@pytest.fixture
+def storyboard_schema_file(tmp_path: Path) -> Path:
+    p = tmp_path / "storyboard.toml"
+    p.write_text(
+        '[[fields]]\nname = "标题"\ntype = "text"\nsource = "meta.title"\n\n'
+        '[storyboard]\n'
+        'table_name = "分镜明细"\n'
+        'rows_source = "analyses.breakdown.shots"\n'
+        'link_field = "所属视频"\n'
+        'master_link_field = "脚本拆解"\n\n'
+        '[[storyboard.fields]]\n'
+        'name = "镜头"\n'
+        'type = "number"\n'
+        'source = "shot"\n',
+        encoding="utf-8",
+    )
+    return p
+
+
 def _ok(stdout: dict) -> subprocess.CompletedProcess:
     return subprocess.CompletedProcess(
         args=[], returncode=0, stdout=json.dumps(stdout), stderr=""
@@ -111,12 +130,22 @@ def test_init_feishu_uses_default_packaged_schema(
     config_show = _config_show_ok()
     base_create = _ok({"ok": True, "data": {"base": {"token": "bascnNEW"}}})
     table_create = _ok({"ok": True, "data": {"table": {"table_id": "tblNEW"}}})
+    storyboard_table_create = _ok(
+        {"ok": True, "data": {"table": {"table_id": "tblSTORY"}}}
+    )
+    link_field_create = _ok({"ok": True, "data": {"field": {"field_id": "fldLink"}}})
 
     with (
         patch("vtf.config.shutil.which", return_value="/fake/lark-cli"),
         patch(
             "vtf.commands.init.subprocess.run",
-            side_effect=[config_show, base_create, table_create],
+            side_effect=[
+                config_show,
+                base_create,
+                table_create,
+                storyboard_table_create,
+                link_field_create,
+            ],
         ) as run_mock,
     ):
         result = CliRunner().invoke(main, ["init", "feishu"])
@@ -127,10 +156,41 @@ def test_init_feishu_uses_default_packaged_schema(
     field_names = [field["name"] for field in fields_payload]
     assert "对标素材链接" in field_names
     assert "封面链接" in field_names
+    assert "脚本拆解" not in field_names
+
+    storyboard_args = run_mock.call_args_list[3].args[0]
+    assert "+table-create" in storyboard_args
+    assert storyboard_args[storyboard_args.index("--name") + 1] == "分镜明细"
+    storyboard_fields = json.loads(
+        storyboard_args[storyboard_args.index("--fields") + 1]
+    )
+    assert storyboard_fields == [
+        {"name": "镜头", "type": "number"},
+        {"name": "时长", "type": "text"},
+        {"name": "文案", "type": "text"},
+        {"name": "出镜类型", "type": "text"},
+        {"name": "素材", "type": "text"},
+        {"name": "音效", "type": "text"},
+        {"name": "动效", "type": "text"},
+        {"name": "备注", "type": "text"},
+    ]
+
+    link_args = run_mock.call_args_list[4].args[0]
+    assert "+field-create" in link_args
+    assert link_args[link_args.index("--table-id") + 1] == "tblSTORY"
+    link_payload = json.loads(link_args[link_args.index("--json") + 1])
+    assert link_payload == {
+        "name": "所属视频",
+        "type": "link",
+        "link_table": "tblNEW",
+        "bidirectional": True,
+        "bidirectional_link_field_name": "脚本拆解",
+    }
 
     content = (tmp_path / "xdg" / "vtf" / "config.toml").read_text("utf-8")
     assert 'schema = "' in content
     assert "baokuan.toml" in content
+    assert 'storyboard_table_id = "tblSTORY"' in content
 
 
 def test_default_schema_documents_attachment_as_auto_created() -> None:
@@ -139,6 +199,8 @@ def test_default_schema_documents_attachment_as_auto_created() -> None:
     assert "type = \"attachment\"" in schema_text
     assert "一起自动创建这一列" in schema_text
     assert "手动加这一列" not in schema_text
+    assert "table_name = \"分镜明细\"" in schema_text
+    assert "master_link_field = \"脚本拆解\"" in schema_text
 
 
 def test_init_feishu_no_write_config_skips_patch(
@@ -168,7 +230,7 @@ def test_init_feishu_no_write_config_skips_patch(
         )
 
     assert result.exit_code == 0
-    assert "请手动把以下三行加到" in result.output
+    assert "请手动把以下配置加到" in result.output
     assert not (tmp_path / "xdg" / "vtf" / "config.toml").exists()
 
 
@@ -259,6 +321,58 @@ def test_init_feishu_sync_no_missing_fields(
     assert result.exit_code == 0, result.output
     assert len(run_mock.call_args_list) == 2  # 仅 config show + field-list
     assert "无需补齐" in result.output
+
+
+def test_init_feishu_sync_creates_missing_storyboard_table(
+    tmp_path: Path,
+    storyboard_schema_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cfg_dir = tmp_path / "xdg" / "vtf"
+    cfg_dir.mkdir(parents=True)
+    (cfg_dir / "config.toml").write_text(
+        f'[sink.feishu]\nbase_token = "bascnEXIST"\ntable_id = "tblMAIN"\n'
+        f'schema = "{storyboard_schema_file}"\nidentity = "bot"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+
+    main_fields = _ok(
+        {"ok": True, "data": {"items": [{"field_name": "标题", "type": "text"}]}}
+    )
+    table_list = _ok({"ok": True, "data": {"items": []}})
+    storyboard_table_create = _ok(
+        {"ok": True, "data": {"table": {"table_id": "tblSTORY"}}}
+    )
+    link_field_create = _ok({"ok": True, "data": {"field": {"field_id": "fldLink"}}})
+
+    with (
+        patch("vtf.config.shutil.which", return_value="/fake/lark-cli"),
+        patch(
+            "vtf.commands.init.subprocess.run",
+            side_effect=[
+                _config_show_ok(),
+                main_fields,
+                table_list,
+                storyboard_table_create,
+                link_field_create,
+            ],
+        ) as run_mock,
+    ):
+        result = CliRunner().invoke(main, ["init", "feishu"])
+
+    assert result.exit_code == 0, result.output
+    assert "+field-list" in run_mock.call_args_list[1].args[0]
+    assert "+table-list" in run_mock.call_args_list[2].args[0]
+    assert "+table-create" in run_mock.call_args_list[3].args[0]
+    link_args = run_mock.call_args_list[4].args[0]
+    assert "+field-create" in link_args
+    link_payload = json.loads(link_args[link_args.index("--json") + 1])
+    assert link_payload["name"] == "所属视频"
+    assert link_payload["link_table"] == "tblMAIN"
+
+    new_cfg = (cfg_dir / "config.toml").read_text("utf-8")
+    assert 'storyboard_table_id = "tblSTORY"' in new_cfg
 
 
 # ----- 测试：pre-flight 失败提示 -----------------------------------------------

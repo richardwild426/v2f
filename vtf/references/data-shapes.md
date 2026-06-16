@@ -71,7 +71,26 @@ agent 跑完 LLM 后，把 `result` 字段填上对象，再交给 `vtf assemble
   "lines": ["..."],
   "analyses": {
     "summary":   { "text": "...", "points": ["..."], "tags": ["..."] },
-    "breakdown": { "text": "...", "hook": "...", "core": "...", "cta": "..." },
+    "breakdown": {
+      "text": "...",
+      "hook": "...",
+      "core": "...",
+      "cta": "...",
+      "pros": ["..."],
+      "suggestions": ["..."],
+      "shots": [
+        {
+          "shot": 1,
+          "duration": "3s",
+          "script": "...",
+          "appearance": "人 / AI / 电脑 / 手机 / 屏幕录制",
+          "materials": ["..."],
+          "sound": "...",
+          "motion": "...",
+          "notes": "..."
+        }
+      ]
+    },
     "rewrite":   { "text": "..." }
   }
 }

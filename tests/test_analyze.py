@@ -66,6 +66,44 @@ def test_analyze_includes_required_feishu_result_fields(tmp_path):
     assert "required for Feishu: text, tags" in out["schema_hint"]
 
 
+def test_analyze_includes_storyboard_rows_source_for_breakdown(tmp_path):
+    schema = tmp_path / "s.toml"
+    schema.write_text(
+        '[[fields]]\nname = "开场钩子"\ntype = "text"\n'
+        'source = "analyses.breakdown.hook"\n\n'
+        '[storyboard]\n'
+        'table_name = "分镜明细"\n'
+        'rows_source = "analyses.breakdown.shots"\n\n'
+        '[[storyboard.fields]]\n'
+        'name = "镜头"\n'
+        'source = "shot"\n',
+        encoding="utf-8",
+    )
+    cfg = Config()
+    cfg.sink.feishu.schema = str(schema)
+
+    out = analyze(
+        kind="breakdown",
+        meta={"title": "Z", "author": "", "platform": ""},
+        lines=[],
+        cfg=cfg,
+    )
+
+    assert out["required_result_fields"] == [
+        {
+            "field": "开场钩子",
+            "source": "analyses.breakdown.hook",
+            "result_path": "hook",
+        },
+        {
+            "field": "分镜明细",
+            "source": "analyses.breakdown.shots",
+            "result_path": "shots",
+        },
+    ]
+    assert "required for Feishu: hook, shots" in out["schema_hint"]
+
+
 def test_analyze_unknown_kind_raises():
     import pytest
 
