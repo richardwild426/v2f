@@ -166,14 +166,11 @@ def test_emit_allows_missing_optional_metadata_field(tmp_path):
         stderr="",
     )
 
-    with patch(
-        "vtf.sinks.feishu.subprocess.run", return_value=fake
-    ) as run_mock:
+    with (
+        patch("vtf.sinks.feishu.subprocess.run", return_value=fake),
+        pytest.raises(UserError, match="缺少飞书必填字段内容"),
+    ):
         Feishu().emit({"meta": _meta()}, cfg)
-
-    payload = json.loads(run_mock.call_args.args[0][run_mock.call_args.args[0].index("--json") + 1])
-    assert payload["fields"] == ["分享数"]
-    assert payload["rows"] == [[""]]
 
 
 def test_emit_writes_storyboard_rows_linked_to_main_record(tmp_path):
@@ -440,11 +437,8 @@ def test_attachment_skipped_when_source_empty(tmp_path):
         ),
         stderr="",
     )
-    with patch(
-        "vtf.sinks.feishu.subprocess.run", side_effect=[create_resp]
-    ) as run_mock:
-        outcome = Feishu().emit(result, cfg)
-
-    assert len(run_mock.call_args_list) == 1
-    assert "rec_w" in outcome.reason
-    assert "附件" not in outcome.reason
+    with (
+        patch("vtf.sinks.feishu.subprocess.run", side_effect=[create_resp]),
+        pytest.raises(UserError, match="缺少飞书必填字段内容"),
+    ):
+        Feishu().emit(result, cfg)

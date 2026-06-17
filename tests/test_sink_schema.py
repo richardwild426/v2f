@@ -54,13 +54,16 @@ def test_render_field_unknown_transformer_raises():
 
 
 def test_required_field_inference():
+    # 分析字段是必填
     assert is_required_field(
         {"name": "摘要", "type": "text", "source": "analyses.summary.text"}
     )
-    assert not is_required_field(
+    # meta 字段也是必填
+    assert is_required_field(
         {"name": "播放数", "type": "text", "source": "meta.view"}
     )
-    assert not is_required_field(
+    # 附件字段也是必填
+    assert is_required_field(
         {"name": "原始素材", "type": "attachment", "source": "analyses.rewrite.text"}
     )
 
@@ -74,9 +77,11 @@ def test_missing_required_fields_reports_name_and_source():
 
     missing = missing_required_fields(RESULT, fields)
 
-    assert [(item.name, item.source) for item in missing] == [
-        ("亮点", "analyses.breakdown.pros | joined")
-    ]
+    # 现在所有字段都是必填，所以缺失的字段会更多
+    missing_names = [(item.name, item.source) for item in missing]
+    assert ("亮点", "analyses.breakdown.pros | joined") in missing_names
+    # RESULT 中没有 meta.view，所以播放数也会被报告为缺失
+    assert ("播放数", "meta.view") in missing_names
 
 
 def test_required_analysis_fields_for_kind():

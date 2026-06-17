@@ -123,9 +123,7 @@ def source_path(expr: str) -> str:
 
 
 def is_required_field(field_def: dict[str, Any]) -> bool:
-    if field_def.get("type", "text") == "attachment":
-        return False
-    return source_path(str(field_def.get("source", ""))).startswith("analyses.")
+    return True
 
 
 def missing_required_fields(
