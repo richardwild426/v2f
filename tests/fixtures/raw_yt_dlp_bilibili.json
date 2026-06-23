@@ -8,5 +8,8 @@
   "thumbnail": "https://i0.hdslb.com/x.jpg",
   "description": "abc",
   "view_count": 12345,
-  "like_count": 678
+  "like_count": 678,
+  "comment_count": 42,
+  "favorite_count": 100,
+  "repost_count": 15
 }

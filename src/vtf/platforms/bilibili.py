@@ -22,4 +22,8 @@ class Bilibili:
         return []
 
     def normalize_metadata(self, raw: dict[str, Any]) -> dict[str, Any]:
-        return _common_normalize(raw, platform="bilibili")
+        out = _common_normalize(raw, platform="bilibili")
+        out["reply"] = int(raw.get("comment_count") or 0)
+        out["favorite"] = int(raw.get("favorite_count") or 0)
+        out["share"] = int(raw.get("repost_count") or 0)
+        return out

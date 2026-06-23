@@ -9,5 +9,7 @@
   "description": "y",
   "view_count": 1000,
   "like_count": 50,
-  "comment_count": 7
+  "comment_count": 7,
+  "favorite_count": 0,
+  "repost_count": 3
 }

@@ -60,13 +60,17 @@ def test_bilibili_normalize(raw_bilibili):
     assert out["upload_date"] == "2026-04-01 00:00"
     assert out["duration_str"] == "10:00"
     assert out["view"] == 12345
-    assert out["favorite"] == 0
-    assert out["share"] == 0
-    assert out["reply"] == 0
+    assert out["favorite"] == 100
+    assert out["share"] == 15
+    assert out["reply"] == 42
+    assert out["extract_time"]  # extract_time should be set
 
 
 def test_youtube_normalize_uses_comment_count(raw_youtube):
     p = next(x for x in REGISTRY if x.name == "youtube")
     out = p.normalize_metadata(raw_youtube)
     assert out["reply"] == 7
+    assert out["favorite"] == 0
+    assert out["share"] == 3
     assert out["duration_str"] == "2:05"
+    assert out["extract_time"]  # extract_time should be set

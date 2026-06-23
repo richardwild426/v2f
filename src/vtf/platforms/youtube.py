@@ -23,5 +23,7 @@ class YouTube:
 
     def normalize_metadata(self, raw: dict[str, Any]) -> dict[str, Any]:
         out = _common_normalize(raw, platform="youtube")
-        out["reply"] = raw.get("comment_count", 0)
+        out["reply"] = int(raw.get("comment_count") or 0)
+        out["favorite"] = int(raw.get("favorite_count") or 0)
+        out["share"] = int(raw.get("repost_count") or 0)
         return out
