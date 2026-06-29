@@ -49,7 +49,7 @@ from vtf.commands import (
 @click.option("--config", "config_path", type=click.Path(path_type=Path), default=None,
               help="覆盖配置文件路径")
 @click.option("--workdir", type=click.Path(path_type=Path), default=None,
-              help="中间产物目录(默认 $XDG_CACHE_HOME/vtf/)")
+              help="中间产物目录(默认当前目录)")
 @click.option("--json", "json_mode", is_flag=True, help="日志走 JSON Lines 到 stderr")
 @click.option("--quiet", is_flag=True, help="仅输出错误")
 @click.version_option(package_name="vtf")

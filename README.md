@@ -17,29 +17,29 @@ bash vtf/scripts/setup.sh
 
 # 跑一条流水线
 mkdir -p ~/vtf-tasks/my-video && cd ~/vtf-tasks/my-video
-vtf --workdir . fetch "https://www.bilibili.com/video/BV1xxx" > meta.json
-AUDIO=$(vtf --workdir . download --meta meta.json)
-vtf --workdir . transcribe "$AUDIO" > transcript.json
-vtf --workdir . merge < transcript.json > lines.json
+vtf fetch "https://www.bilibili.com/video/BV1xxx" > meta.json
+AUDIO=$(vtf download --meta meta.json)
+vtf transcribe "$AUDIO" > transcript.json
+vtf merge < transcript.json > lines.json
 
 # 生成 LLM prompt（交给你使用的 AI 填充 result）
-vtf --workdir . analyze --meta meta.json --kind summary < lines.json > summary.json
-vtf --workdir . analyze --meta meta.json --kind breakdown < lines.json > breakdown.json
-vtf --workdir . analyze --meta meta.json --kind rewrite < lines.json > rewrite.json
+vtf analyze --meta meta.json --kind summary < lines.json > summary.json
+vtf analyze --meta meta.json --kind breakdown < lines.json > breakdown.json
+vtf analyze --meta meta.json --kind rewrite < lines.json > rewrite.json
 
 # AI 填充 result 后，收尾
-vtf --workdir . assemble > result.json
-vtf --workdir . emit < result.json > report.md
+vtf assemble > result.json
+vtf emit < result.json > report.md
 ```
 
 或用快捷命令 `vtf run` 把前 5 步一口气跑完：
 
 ```bash
 mkdir -p ~/vtf-tasks/my-video && cd ~/vtf-tasks/my-video
-vtf --workdir . run "https://www.bilibili.com/video/BV1xxx"
+vtf run "https://www.bilibili.com/video/BV1xxx"
 # AI 填充 summary.json / breakdown.json / rewrite.json 的 result 字段
-vtf --workdir . assemble > result.json
-vtf --workdir . emit < result.json > report.md
+vtf assemble > result.json
+vtf emit < result.json > report.md
 ```
 
 ---

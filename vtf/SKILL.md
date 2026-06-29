@@ -26,53 +26,45 @@ vtf doctor
 
 ## 工作目录
 
-不指定 `--workdir` 时产物落在 `~/.cache/vtf/`，cwd 不可见。**强制约定**：先建任务目录，所有命令带 `--workdir .`：
+先建任务目录并 `cd` 进去，产物默认落在当前目录（无需给命令加 `--workdir` 前缀）：
 
 ```bash
 mkdir -p ~/vtf-tasks/<video_id> && cd ~/vtf-tasks/<video_id>
-# 后续所有 vtf 命令前加 --workdir .
 ```
 
-## 7 步流水线
+> 需要把产物放到别处时再显式传 `--workdir <path>`。
 
-> 前置条件必须满足，否则禁止进入下一步。见下表。详细参考 [references/pipeline.md](references/pipeline.md)。
+## 快速流程（三动作）
 
-## 前置条件总结
-
-| 步骤 | 前置条件 |
-|------|----------|
-| 1 | 无 |
-| 2 | meta.json 存在 |
-| 3 | AUDIO 文件存在 |
-| 4 | transcript.json 存在 |
-| 5 | meta.json 和 lines.json 存在 |
-| 6 | summary.json、breakdown.json、rewrite.json 存在 |
-| 7 | result.json 存在 |
-
-| # | 步骤 | 命令 | 产物 | 验证 |
-|---|------|------|------|------|
-| 1 | **fetch** | `vtf --workdir . fetch <url> > meta.json` | `meta.json` | `title` 非空，`thumbnail` 保留 |
-| 2 | **download** | `AUDIO=$(vtf --workdir . download --meta meta.json)` | `<id>.mp3`（feishu sink 时 + `<id>.mp4`） | 文件存在且 size > 0 |
-| 3 | **transcribe** | `vtf --workdir . transcribe "$AUDIO" > transcript.json` | `transcript.json` | `sentences` 长度 ≥ 1 |
-| 4 | **merge** | `vtf --workdir . merge < transcript.json > lines.json` | `lines.json` | `lines` 长度 ≥ 1 |
-| 5 | **analyze ×3** | `vtf --workdir . analyze --meta meta.json --kind {summary,breakdown,rewrite} < lines.json > {kind}.json` | `summary.json` `breakdown.json` `rewrite.json` | 三个文件 `result` 全部非 null |
-| 6 | **assemble** | `vtf --workdir . assemble > result.json` | `result.json` | `analyses` 含 3 个 key |
-| 7 | **emit** | `vtf --workdir . emit < result.json > report.md` | `report.md` 或飞书行 | 输出含封面 URL |
-
-> 回填三个 `result` 后，第 6+7 步可用 `vtf --workdir . finish` 一条命令收尾（= assemble + emit）；
-> 需要分步调试时再拆成 assemble + emit。
-
-### 快捷命令 `vtf run`
-
-把第 1-5 步一口气跑完，产物写到 workdir 后停下（**这是 LLM 接管点**）。然后智能体填充三个 `result` 字段，再用 `vtf finish` 收尾。
+整条流水线只有一处需要智能体（填 `result`），其余都是确定性命令：
 
 ```bash
-vtf --workdir . run <url>
-# stderr 会打印回填完成后的 finish 命令（及可选的分步 assemble + emit 样例）
+# 1. 抓取 → 下载 → 转录 → 预处理 → 生成 3 个 analyze prompt（停在 LLM 接管点）
+vtf run <url>
+
+# 2. 填充 summary.json / breakdown.json / rewrite.json 的 result 字段（唯一的 LLM 工作，见下「analyze 契约」）
+
+# 3. 装配 + 写出报告/飞书（= assemble + emit 一步收尾）
+vtf finish
 ```
 
-`vtf run` 本身不调用 LLM、不会自动收尾——它停在 analyze 阶段是必然的，因为 `result` 要靠智能体填。
-回填后才能 `vtf finish`。
+`vtf run` 不调用 LLM、不会自动收尾——它停在 analyze 是必然的，因为 `result` 要靠智能体填；
+回填后才能 `vtf finish`。run 的 stderr 会打印回填后该跑的 finish 命令。
+
+## 分步调试（可选）
+
+需要单独排查某一步时，用下列原子命令（run/finish 就是它们的编排）。
+完整命令、产物、验证条件见 [references/pipeline.md](references/pipeline.md)。
+
+| 命令 | 作用 |
+|------|------|
+| `fetch <url>` | 抓元数据 → `meta.json`（含 `thumbnail`） |
+| `download --meta meta.json` | 下载音频（feishu sink 时另存视频） |
+| `transcribe <audio>` | 转录 → `transcript.json` |
+| `merge` | 合并字幕行 → `lines.json` |
+| `analyze --kind {summary,breakdown,rewrite}` | 生成 LLM prompt（`result` 待填） |
+| `assemble` | 装配 → `result.json` |
+| `emit` | 写当前 sink（markdown / 飞书） |
 
 ## analyze 契约
 

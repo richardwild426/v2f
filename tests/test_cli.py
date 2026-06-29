@@ -41,6 +41,27 @@ def test_finish_assembles_and_emits_markdown(tmp_path):
     assert "https://example.com/c.jpg" in r.output
 
 
+def test_finish_defaults_workdir_to_cwd(tmp_path, monkeypatch):
+    """不带 --workdir 时从当前目录取产物（不再要求 --workdir . 前缀）。"""
+    (tmp_path / "meta.json").write_text(
+        json.dumps({"title": "T", "thumbnail": "https://example.com/c.jpg"}),
+        encoding="utf-8",
+    )
+    (tmp_path / "lines.json").write_text(
+        json.dumps({"lines": ["a"]}), encoding="utf-8"
+    )
+    for kind in ("summary", "breakdown", "rewrite"):
+        (tmp_path / f"{kind}.json").write_text(
+            json.dumps({"kind": kind, "result": {"text": kind}}), encoding="utf-8"
+        )
+
+    monkeypatch.chdir(tmp_path)
+    r = CliRunner().invoke(main, ["finish", "--sink", "markdown"])
+
+    assert r.exit_code == 0, r.output
+    assert "https://example.com/c.jpg" in r.output
+
+
 def test_global_flags_recognized():
     r = CliRunner().invoke(main, ["--quiet", "--help"])
     assert r.exit_code == 0

@@ -98,7 +98,7 @@ rewrite = ""
 | 参数 | 说明 |
 |------|------|
 | `--config <path>` | 覆盖配置文件路径 |
-| `--workdir <path>` | 中间产物目录（默认 `~/.cache/vtf/`） |
+| `--workdir <path>` | 中间产物目录（默认当前目录） |
 | `--json` | 日志以 JSON Lines 输出到 stderr |
 | `--quiet` | 仅输出错误 |
 | `--version` | 显示版本号 |

@@ -4,7 +4,8 @@
 
 ## 工作目录约定
 
-不指定 `--workdir` 时产物落在 `~/.cache/vtf/`，不会被 cwd 的 `ls` 看到。**强制做法**：先建任务目录，cd 进去，所有命令加 `vtf --workdir .`。
+产物默认落在当前目录。先建任务目录并 `cd` 进去即可，命令无需 `--workdir` 前缀；
+需要放到别处时再显式传 `vtf --workdir <path> <cmd>`。
 
 ```bash
 mkdir -p ~/vtf-tasks/<video_id> && cd ~/vtf-tasks/<video_id>
@@ -13,7 +14,7 @@ mkdir -p ~/vtf-tasks/<video_id> && cd ~/vtf-tasks/<video_id>
 ## 第 1 步：fetch（抓取元数据）
 
 ```bash
-vtf --workdir . fetch <url> > meta.json
+vtf fetch <url> > meta.json
 ```
 
 **产物**：`meta.json`
@@ -25,7 +26,7 @@ vtf --workdir . fetch <url> > meta.json
 ## 第 2 步：download（下载音频）
 
 ```bash
-AUDIO=$(vtf --workdir . download --meta meta.json)
+AUDIO=$(vtf download --meta meta.json)
 ```
 
 **产物**：`<video_id>.mp3`，路径回到 `$AUDIO` 变量。
@@ -37,7 +38,7 @@ AUDIO=$(vtf --workdir . download --meta meta.json)
 ## 第 3 步：transcribe（转录）
 
 ```bash
-vtf --workdir . transcribe "$AUDIO" > transcript.json
+vtf transcribe "$AUDIO" > transcript.json
 ```
 
 **产物**：`transcript.json`
@@ -49,7 +50,7 @@ vtf --workdir . transcribe "$AUDIO" > transcript.json
 ## 第 4 步：merge（合并句子）
 
 ```bash
-vtf --workdir . merge < transcript.json > lines.json
+vtf merge < transcript.json > lines.json
 ```
 
 **产物**：`lines.json`
@@ -61,9 +62,9 @@ vtf --workdir . merge < transcript.json > lines.json
 ## 第 5 步：analyze ×3（生成 LLM prompt）
 
 ```bash
-vtf --workdir . analyze --meta meta.json --kind summary < lines.json > summary.json
-vtf --workdir . analyze --meta meta.json --kind breakdown < lines.json > breakdown.json
-vtf --workdir . analyze --meta meta.json --kind rewrite < lines.json > rewrite.json
+vtf analyze --meta meta.json --kind summary < lines.json > summary.json
+vtf analyze --meta meta.json --kind breakdown < lines.json > breakdown.json
+vtf analyze --meta meta.json --kind rewrite < lines.json > rewrite.json
 ```
 
 **产物**：`summary.json`, `breakdown.json`, `rewrite.json`
@@ -102,7 +103,7 @@ rewrite prompt 要求改写稿字数 ≥ 原稿 × 0.95。LLM 返回后检查 `r
 ## 第 6 步：assemble（装配）
 
 ```bash
-vtf --workdir . assemble > result.json
+vtf assemble > result.json
 ```
 
 assemble 自动从 workdir 收集 `meta.json`、`lines.json`、`{summary,breakdown,rewrite}.json`。也可显式传 `--meta` / `--lines` / `--analysis` 覆盖。
@@ -118,10 +119,10 @@ assemble 自动从 workdir 收集 `meta.json`、`lines.json`、`{summary,breakdo
 
 ```bash
 # markdown sink
-vtf --workdir . emit < result.json > report.md
+vtf emit < result.json > report.md
 
 # feishu sink（直接写飞书表格，无 stdout 产物）
-vtf --workdir . emit < result.json
+vtf emit < result.json
 ```
 
 **产物**：`report.md`（markdown）或飞书行（feishu）
@@ -133,8 +134,8 @@ vtf --workdir . emit < result.json
 回填三个 `result` 后，`finish` 把第 6+7 步合并成一条命令（= assemble + emit）：
 
 ```bash
-vtf --workdir . finish            # 用配置的 sink
-vtf --workdir . finish --sink markdown   # 临时覆盖 sink
+vtf finish            # 用配置的 sink
+vtf finish --sink markdown   # 临时覆盖 sink
 ```
 
 行为等价于先 `vtf assemble > result.json` 再 `vtf emit < result.json`；需要分步调试时仍可拆开。
@@ -142,7 +143,7 @@ vtf --workdir . finish --sink markdown   # 临时覆盖 sink
 ## 快捷命令 `vtf run`
 
 ```bash
-vtf --workdir . run <url>
+vtf run <url>
 ```
 
 把第 1-5 步一口气跑完，产物写到 workdir 后停下（**LLM 接管点**）。stderr 会打印回填后用的 `vtf finish` 命令（及可选的分步样例）。然后由智能体填充 result 字段，再用 `vtf finish` 收尾。
@@ -153,19 +154,8 @@ vtf --workdir . run <url>
 
 ## 完成定义
 
-工作目录必须同时存在以下文件，且最终输出含封面 URL：
-
-```
-meta.json          # 含 thumbnail URL
-audio.*            # 音频文件
-transcript.json    # 原始转录
-lines.json         # 合并文本行
-summary.json       # result 已填充
-breakdown.json     # result 已填充
-rewrite.json       # result 已填充
-result.json        # meta.thumbnail 已透传
-report.md          # （markdown sink）含封面 URL
-```
+完成所需的产物清单见 [SKILL.md](../SKILL.md#完成定义)（单一权威，避免重复漂移）。
+此外中间还会产生音频文件（`<id>.mp3`，feishu sink 时另有 `<id>.mp4`）。
 
 ## 封面 URL 规则
 

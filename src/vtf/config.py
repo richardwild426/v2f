@@ -192,10 +192,8 @@ def default_user_path() -> Path:
 
 
 def default_workdir() -> Path:
-    base = os.environ.get("XDG_CACHE_HOME")
-    if base:
-        return Path(base) / "vtf"
-    return Path.home() / ".cache" / "vtf"
+    # 默认落当前目录：技能始终在任务目录内操作，省去每条命令的 --workdir . 前缀。
+    return Path.cwd()
 
 
 def resolve_lark_cli(cfg: Config) -> str | None:

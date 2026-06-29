@@ -1,9 +1,19 @@
+from pathlib import Path
+
 from vtf.config import (
     DEFAULT_FEISHU_SCHEMA,
+    default_workdir,
     load_config,
     resolve_feishu_schema_path,
     resolve_schema_path,
 )
+
+
+def test_default_workdir_is_cwd(tmp_path, monkeypatch):
+    # 默认产物目录就是当前目录，不再落到不可见的 cache 目录
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "ignored-cache"))
+    assert default_workdir() == Path.cwd() == tmp_path.resolve()
 
 
 def test_default_config_values():
