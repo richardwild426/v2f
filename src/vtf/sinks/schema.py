@@ -15,10 +15,21 @@ class MissingField:
 
 
 @dataclass(frozen=True)
+class RowFieldSpec:
+    """子表行内单个字段的契约（如分镜的「镜头」对应 result_path "shot"）。"""
+
+    name: str
+    result_path: str
+    required: bool
+
+
+@dataclass(frozen=True)
 class RequiredAnalysisField:
     name: str
     source: str
     result_path: str
+    # 非空表示 result_path 指向的是子表行集合（list[dict]），每行需满足 row_fields。
+    row_fields: tuple[RowFieldSpec, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -62,13 +73,14 @@ def load_storyboard_schema(schema_path: Path) -> StoryboardSchema | None:
         source = str(item.get("source", "")).strip()
         if not name or not source:
             continue
-        fields_out.append(
-            {
-                "name": name,
-                "type": str(item.get("type", "text")),
-                "source": source,
-            }
-        )
+        field_out: dict[str, Any] = {
+            "name": name,
+            "type": str(item.get("type", "text")),
+            "source": source,
+        }
+        if isinstance(item.get("required"), bool):
+            field_out["required"] = item["required"]
+        fields_out.append(field_out)
     if not fields_out:
         raise UserError(f"schema storyboard 解析后字段列表为空: {schema_path}")
 
@@ -90,10 +102,20 @@ def storyboard_required_analysis_field(
     path = source_path(storyboard.rows_source)
     if not path.startswith(prefix):
         return None
+    row_fields = tuple(
+        RowFieldSpec(
+            name=str(field.get("name", "")),
+            result_path=source_path(str(field.get("source", ""))),
+            required=is_required_field(field),
+        )
+        for field in storyboard.fields
+        if field.get("name") and field.get("source")
+    )
     return RequiredAnalysisField(
         name=storyboard.table_name,
         source=storyboard.rows_source,
         result_path=path.removeprefix(prefix),
+        row_fields=row_fields,
     )
 
 
@@ -123,7 +145,21 @@ def source_path(expr: str) -> str:
 
 
 def is_required_field(field_def: dict[str, Any]) -> bool:
-    return True
+    """字段是否必填。
+
+    优先级：显式 ``required`` 标记 > 类型/来源前缀默认。与 references/feishu.md 对齐：
+    - 显式 ``required = true/false`` 覆盖一切（schema 为单一权威）。
+    - ``attachment`` 类型 best-effort 上传，不参与必填校验。
+    - ``meta.*`` 来源默认可空（平台差异，可能不提供播放/分享数等）。
+    - 其余来源（``analyses.*``、``lines`` 等）默认必填。
+    """
+    explicit = field_def.get("required")
+    if isinstance(explicit, bool):
+        return explicit
+    if str(field_def.get("type", "text")) == "attachment":
+        return False
+    # meta.* 默认可空；其余来源（analyses.* / lines 等）默认必填
+    return not source_path(str(field_def.get("source", ""))).startswith("meta.")
 
 
 def missing_required_fields(
@@ -164,7 +200,8 @@ def required_analysis_fields(
     return out
 
 
-def _is_missing_value(value: Any) -> bool:
+def is_missing_value(value: Any) -> bool:
+    """空值判定：None / 空白字符串 / 空集合视为缺失。供 sink 与 pipeline 复用。"""
     if value is None:
         return True
     if isinstance(value, str):
@@ -172,6 +209,10 @@ def _is_missing_value(value: Any) -> bool:
     if isinstance(value, (list, tuple, set, dict)):
         return len(value) == 0
     return False
+
+
+# 向后兼容的内部别名
+_is_missing_value = is_missing_value
 
 
 def _apply_transformer(value: Any, name: str) -> Any:

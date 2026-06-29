@@ -69,7 +69,9 @@ def cmd(ctx: click.Context, url: str) -> None:
     click.echo("流水线已跑到 analyze 阶段，请填充以下文件的 result 字段:", err=True)
     for ap in analyses_paths:
         click.echo(f"  - {ap}", err=True)
-    click.echo("\n填充完毕后用以下命令收尾:", err=True)
+    click.echo("\n填充完毕后用一条命令收尾(装配 + 写入 sink):", err=True)
+    click.echo(f"  vtf --workdir {workdir} finish", err=True)
+    click.echo("\n如需分步调试，也可拆成 assemble + emit:", err=True)
     cmd_lines = [
         f"  vtf assemble --meta {meta_path} --lines {lines_path} \\",
         *[f"    --analysis {ap} \\" for ap in analyses_paths],

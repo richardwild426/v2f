@@ -147,6 +147,7 @@ def test_emit_rejects_missing_required_analysis_field_before_remote_call(tmp_pat
 
 
 def test_emit_allows_missing_optional_metadata_field(tmp_path):
+    """meta.* 默认可空：缺失的 meta 字段不 block 写入，照常写空值。"""
     schema = tmp_path / "s.toml"
     schema.write_text(
         '[[fields]]\nname = "分享数"\ntype = "text"\nsource = "meta.share"\n',
@@ -166,11 +167,14 @@ def test_emit_allows_missing_optional_metadata_field(tmp_path):
         stderr="",
     )
 
-    with (
-        patch("vtf.sinks.feishu.subprocess.run", return_value=fake),
-        pytest.raises(UserError, match="缺少飞书必填字段内容"),
-    ):
-        Feishu().emit({"meta": _meta()}, cfg)
+    with patch("vtf.sinks.feishu.subprocess.run", return_value=fake) as run_mock:
+        outcome = Feishu().emit({"meta": _meta()}, cfg)
+
+    # 缺失的 meta.share 不报错，写入照常进行，对应单元格为空字符串
+    cmd = run_mock.call_args.args[0]
+    payload = json.loads(cmd[cmd.index("--json") + 1])
+    assert payload == {"fields": ["分享数"], "rows": [[""]]}
+    assert "rec_meta" in outcome.reason
 
 
 def test_emit_writes_storyboard_rows_linked_to_main_record(tmp_path):
@@ -227,6 +231,33 @@ def test_emit_writes_storyboard_rows_linked_to_main_record(tmp_path):
         ],
     }
     assert "recMain" in outcome.reason
+
+
+def test_emit_rejects_missing_storyboard_row_field_before_remote_call(tmp_path):
+    """子表某行缺必填子字段时 fail loud，报行号+字段，不再静默写空。"""
+    cfg = _storyboard_cfg(tmp_path)
+    result = {
+        "meta": _meta(title="Video A"),
+        "analyses": {
+            "breakdown": {
+                "shots": [
+                    {"shot": 1, "materials": ["cover"]},
+                    {"shot": 2},  # 缺 materials
+                ]
+            }
+        },
+    }
+
+    with (
+        patch("vtf.sinks.feishu.subprocess.run") as run_mock,
+        pytest.raises(UserError) as exc,
+    ):
+        Feishu().emit(result, cfg)
+
+    assert not run_mock.called
+    msg = str(exc.value)
+    assert "第2行" in msg
+    assert "素材" in msg
 
 
 def test_emit_rejects_missing_storyboard_table_id(tmp_path):
@@ -425,7 +456,7 @@ def test_attachment_skipped_when_oversize(tmp_path):
 
 
 def test_attachment_skipped_when_source_empty(tmp_path):
-    """meta.video_path 不存在时，附件字段直接被忽略，仅写 batch_create。"""
+    """meta.video_path 不存在时，附件字段不参与必填校验，仅写 batch_create。"""
     cfg = _attachment_cfg(tmp_path)
     cfg.sink.feishu.lark_cli = "/fake/lark-cli"
     result = {"meta": _meta()}
@@ -437,8 +468,14 @@ def test_attachment_skipped_when_source_empty(tmp_path):
         ),
         stderr="",
     )
-    with (
-        patch("vtf.sinks.feishu.subprocess.run", side_effect=[create_resp]),
-        pytest.raises(UserError, match="缺少飞书必填字段内容"),
-    ):
-        Feishu().emit(result, cfg)
+    with patch(
+        "vtf.sinks.feishu.subprocess.run", side_effect=[create_resp]
+    ) as run_mock:
+        outcome = Feishu().emit(result, cfg)
+
+    # 附件源缺失不报错；只发一次 batch_create，不发 upload-attachment
+    assert len(run_mock.call_args_list) == 1
+    create_cmd = run_mock.call_args_list[0].args[0]
+    payload = json.loads(create_cmd[create_cmd.index("--json") + 1])
+    assert "原始素材" not in payload["fields"]
+    assert "rec_w" in outcome.reason

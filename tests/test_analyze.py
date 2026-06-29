@@ -99,9 +99,12 @@ def test_analyze_includes_storyboard_rows_source_for_breakdown(tmp_path):
             "field": "分镜明细",
             "source": "analyses.breakdown.shots",
             "result_path": "shots",
+            "row_fields": [
+                {"field": "镜头", "result_path": "shot", "required": True},
+            ],
         },
     ]
-    assert "required for Feishu: hook, shots" in out["schema_hint"]
+    assert "required for Feishu: hook, shots[]:{shot}" in out["schema_hint"]
 
 
 def test_analyze_unknown_kind_raises():

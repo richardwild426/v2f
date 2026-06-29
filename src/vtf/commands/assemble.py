@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -12,25 +13,16 @@ from vtf.pipeline.assemble import assemble
 _AUTO_KINDS = ("summary", "breakdown", "rewrite")
 
 
-@click.command(
-    name="assemble",
-    help="拼装最终 result.json。"
-    "默认从 --workdir 自动收集 meta.json / lines.json / {summary,breakdown,rewrite}.json；"
-    "也可显式传 --meta / --lines / --analysis 覆盖。",
-)
-@click.option("--meta", "meta_path", type=click.Path(path_type=Path, exists=True))
-@click.option("--lines", "lines_path", type=click.Path(path_type=Path, exists=True))
-@click.option("--analysis", "analyses", multiple=True, type=click.Path(path_type=Path, exists=True))
-@click.pass_context
-def cmd(
-    ctx: click.Context,
-    meta_path: Path | None,
-    lines_path: Path | None,
-    analyses: tuple[Path, ...],
-) -> None:
-    log = get_logger(ctx)
-    workdir = get_workdir(ctx)
+def collect_and_assemble(
+    workdir: Path,
+    meta_path: Path | None = None,
+    lines_path: Path | None = None,
+    analyses: tuple[Path, ...] = (),
+) -> dict[str, Any]:
+    """从 workdir（或显式路径）收集流水线产物并调用 assemble。
 
+    供 `assemble` 与 `finish` 命令复用。不依赖 click ctx，失败时 raise VtfError。
+    """
     if meta_path is None:
         meta_path = workdir / "meta.json"
     if lines_path is None:
@@ -58,8 +50,30 @@ def cmd(
     meta = json.loads(meta_path.read_text("utf-8"))
     lines_data = json.loads(lines_path.read_text("utf-8"))
     items = [json.loads(p.read_text("utf-8")) for p in analysis_paths]
+    return assemble(meta=meta, lines=lines_data["lines"], analyses=items)
+
+
+@click.command(
+    name="assemble",
+    help="拼装最终 result.json。"
+    "默认从 --workdir 自动收集 meta.json / lines.json / {summary,breakdown,rewrite}.json；"
+    "也可显式传 --meta / --lines / --analysis 覆盖。",
+)
+@click.option("--meta", "meta_path", type=click.Path(path_type=Path, exists=True))
+@click.option("--lines", "lines_path", type=click.Path(path_type=Path, exists=True))
+@click.option("--analysis", "analyses", multiple=True, type=click.Path(path_type=Path, exists=True))
+@click.pass_context
+def cmd(
+    ctx: click.Context,
+    meta_path: Path | None,
+    lines_path: Path | None,
+    analyses: tuple[Path, ...],
+) -> None:
+    log = get_logger(ctx)
+    workdir = get_workdir(ctx)
+
     try:
-        out = assemble(meta=meta, lines=lines_data["lines"], analyses=items)
+        out = collect_and_assemble(workdir, meta_path, lines_path, analyses)
     except VtfError as e:
         log.error(str(e), step="assemble")
         raise SystemExit(e.exit_code) from e

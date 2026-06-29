@@ -79,10 +79,14 @@ vtf --workdir . analyze --meta meta.json --kind rewrite < lines.json > rewrite.j
   "kind": "summary",
   "prompt": "<完整渲染的 LLM prompt>",
   "context": {"title": "...", "author": "...", "platform": "...", "lines_count": 42},
-  "schema_hint": "expected: {text, points[], tags[]}",
+  "schema_hint": "required for Feishu: text, tags",
   "result": null
 }
 ```
+
+`schema_hint` 只列下游飞书必填字段（无 schema 时为空）；`result` 的形状以 prompt 模板为权威。
+配了飞书 schema 时，输出还含 `required_result_fields`（breakdown 的分镜条目带 `row_fields`），
+是字段契约的机器可读单一来源，详见 [data-shapes.md](data-shapes.md)。
 
 **智能体职责**：
 1. 执行 `prompt` 字段内容（调用 LLM）
@@ -107,6 +111,9 @@ assemble 自动从 workdir 收集 `meta.json`、`lines.json`、`{summary,breakdo
 
 **验证**：`result.analyses` 包含 summary、breakdown、rewrite 三个键，且 `result.meta.thumbnail` 已传递。
 
+**提前完整性校验**：assemble 会按各 analysis 自带的 `required_result_fields`（含分镜 `row_fields`）
+校验 `result` 的子字段，残缺时就近报错，不必等到 emit。无 schema 的纯 markdown 流程不受影响。
+
 ## 第 7 步：emit（输出）
 
 ```bash
@@ -121,15 +128,26 @@ vtf --workdir . emit < result.json
 
 **验证**：sink 返回成功，输出中**包含封面 URL**。
 
+## 收尾快捷命令 `vtf finish`
+
+回填三个 `result` 后，`finish` 把第 6+7 步合并成一条命令（= assemble + emit）：
+
+```bash
+vtf --workdir . finish            # 用配置的 sink
+vtf --workdir . finish --sink markdown   # 临时覆盖 sink
+```
+
+行为等价于先 `vtf assemble > result.json` 再 `vtf emit < result.json`；需要分步调试时仍可拆开。
+
 ## 快捷命令 `vtf run`
 
 ```bash
 vtf --workdir . run <url>
 ```
 
-把第 1-5 步一口气跑完，产物写到 workdir 后停下。stderr 会打印接下来的 assemble + emit 命令样例。然后由智能体填充 result 字段，再手工跑第 6、7 步。
+把第 1-5 步一口气跑完，产物写到 workdir 后停下（**LLM 接管点**）。stderr 会打印回填后用的 `vtf finish` 命令（及可选的分步样例）。然后由智能体填充 result 字段，再用 `vtf finish` 收尾。
 
-`vtf run` 不调用 LLM，不会自动收尾。**不要期待一条命令出报告**。
+`vtf run` 本身不调用 LLM、不会自动收尾——它停在 analyze 是必然的，因为 `result` 要靠智能体填。回填后才能 `vtf finish`。
 
 `--skip` 已停用。完整流程必须同时生成 summary、breakdown、rewrite 三个 analyze 文件。
 

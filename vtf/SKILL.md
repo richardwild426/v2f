@@ -59,24 +59,29 @@ mkdir -p ~/vtf-tasks/<video_id> && cd ~/vtf-tasks/<video_id>
 | 6 | **assemble** | `vtf --workdir . assemble > result.json` | `result.json` | `analyses` 含 3 个 key |
 | 7 | **emit** | `vtf --workdir . emit < result.json > report.md` | `report.md` 或飞书行 | 输出含封面 URL |
 
+> 回填三个 `result` 后，第 6+7 步可用 `vtf --workdir . finish` 一条命令收尾（= assemble + emit）；
+> 需要分步调试时再拆成 assemble + emit。
+
 ### 快捷命令 `vtf run`
 
-把第 1-5 步一口气跑完，产物写到 workdir 后停下。然后智能体填充三个 `result` 字段，再手工跑 assemble + emit。
+把第 1-5 步一口气跑完，产物写到 workdir 后停下（**这是 LLM 接管点**）。然后智能体填充三个 `result` 字段，再用 `vtf finish` 收尾。
 
 ```bash
 vtf --workdir . run <url>
-# stderr 会打印接下来的 assemble + emit 命令样例
+# stderr 会打印回填完成后的 finish 命令（及可选的分步 assemble + emit 样例）
 ```
 
-`vtf run` 不调用 LLM，不会自动收尾。不要期待一条命令出报告。
+`vtf run` 本身不调用 LLM、不会自动收尾——它停在 analyze 阶段是必然的，因为 `result` 要靠智能体填。
+回填后才能 `vtf finish`。
 
 ## analyze 契约
 
 `vtf analyze --kind X` 输出 JSON，`result` 字段为 null。**智能体必须**：
 
-1. 执行 `prompt` 字段的内容（调用 LLM）
+1. 执行 `prompt` 字段的内容（调用 LLM）。`result` 的形状以 prompt 要求为准。
 2. 把 LLM 返回的 JSON 对象完整填入 `result` 字段
-3. 如果输出包含 `required_result_fields`，逐项确认这些 `result_path` 在 `result` 里都有非空值
+3. 如果输出包含 `required_result_fields`，逐项确认这些 `result_path` 在 `result` 里都有非空值；
+   breakdown 的分镜条目带 `row_fields` 时，确认每个 shot 都含其中 `required` 的子字段
 4. 三个 kind（summary, breakdown, rewrite）**全部跑**，缺一不可
 
 ```json
@@ -85,7 +90,9 @@ vtf --workdir . run <url>
 {"kind": "summary", "prompt": "...", "result": {"text": "...", "points": [...], "tags": [...]}}
 ```
 
-飞书 sink 会在写入前阻断缺失的 `analyses.*` 字段，报错会列出飞书字段名和 source path。不要把缺失字段留空后继续 emit。
+`required_result_fields` 由 schema（`assets/schemas/baokuan.toml`）派生，是字段契约的单一权威，
+不要凭记忆硬填。残缺的 `result` 在 `vtf assemble`/`vtf finish` 阶段就会就近报错（不必等到 emit）；
+飞书 sink 写入前还会再次阻断缺失的必填字段，报错列出字段名和 source path。不要把缺失字段留空后继续。
 
 rewrite 的 LLM 返回后检查 `result._meta.比值` ≥ 0.95，未达标则重调一次。
 

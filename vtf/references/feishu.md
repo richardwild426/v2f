@@ -96,7 +96,10 @@ Schema 是 TOML 文件，定义飞书表字段到 result.json 的数据路径映
 name = "标题"        # 飞书列名
 type = "text"        # 字段类型：text, number, datetime, attachment
 source = "meta.title"  # 数据路径（点号分隔）
+required = true      # 可选；显式覆盖默认必填性（见下「完整性校验」）
 ```
+
+> `baokuan.toml` 是字段映射与必填性的**单一权威来源**，其它文档只引用它、不重抄字段表。
 
 ### 支持的类型
 
@@ -129,18 +132,28 @@ master_link_field = "脚本拆解"
 
 ### 写入前完整性校验
 
-`vtf emit` 会在调用飞书前按 schema 校验字段内容：
+`vtf emit` 会在调用飞书前按 schema 校验字段内容，必填性由 `is_required_field` 判定：
 
-- `analyses.*` 来源字段默认必填，缺失或为空会停止写入，避免产生半空记录
-- `meta.*` 来源字段默认可空；不同平台可能不提供播放数、分享数等元数据
-- `attachment` 字段不参与主记录必填校验，继续按 best-effort 上传
+- 字段显式 `required = true/false` 时以其为准（优先级最高）
+- 否则按来源前缀取默认：`analyses.*`（及 `lines` 等）默认必填，缺失或为空会停止写入，避免半空记录
+- `meta.*` 来源字段默认可空；不同平台可能不提供播放数、分享数等元数据，缺失照常写空值
+- `attachment` 字段不参与必填校验，继续按 best-effort 上传
 - `meta.thumbnail` 是全局硬要求，缺失时仍会直接报错
 
-报错会列出飞书字段名和 source path，例如：
+主表报错会列出飞书字段名和 source path，例如：
 
 ```text
 缺少飞书必填字段内容，已停止写入: 开场钩子(analyses.breakdown.hook)
 ```
+
+**分镜子表同样校验**：每行的必填子字段缺失会 fail loud（不再静默写空），报出行号+字段：
+
+```text
+缺少飞书子表分镜必填字段内容，已停止写入: 第2行 素材(materials | joined)
+```
+
+更早一层，`vtf assemble` / `vtf finish` 会按 analyze 下发的 `required_result_fields`
+（含分镜 `row_fields`）在装配阶段就校验残缺 `result`，把失败点拉到离回填最近处。
 
 ## 附件字段
 

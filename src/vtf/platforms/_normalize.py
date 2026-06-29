@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import contextlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -17,7 +17,7 @@ def _parse_upload_date(raw: dict[str, Any]) -> str:
     timestamp = raw.get("timestamp")
     if timestamp:
         with contextlib.suppress(ValueError, OSError):
-            return datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime(
+            return datetime.fromtimestamp(timestamp, tz=UTC).strftime(
                 "%Y-%m-%d %H:%M"
             )
     return ""

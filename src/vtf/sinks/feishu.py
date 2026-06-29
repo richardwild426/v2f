@@ -11,6 +11,8 @@ from vtf.errors import RemoteError, UserError
 from vtf.sinks.base import EmitOutcome
 from vtf.sinks.schema import (
     StoryboardSchema,
+    is_missing_value,
+    is_required_field,
     load_schema_fields,
     load_storyboard_schema,
     missing_required_fields,
@@ -196,6 +198,7 @@ class Feishu:
             )
 
         rows: list[list[Any]] = []
+        missing: list[str] = []
         for index, raw_row in enumerate(raw_rows, start=1):
             if not isinstance(raw_row, dict):
                 raise UserError(
@@ -203,9 +206,16 @@ class Feishu:
                 )
             row: list[Any] = []
             for field in storyboard.fields:
-                value = render_field(raw_row, str(field.get("source", "")))
+                source = str(field.get("source", ""))
+                value = render_field(raw_row, source)
+                if is_required_field(field) and is_missing_value(value):
+                    missing.append(f"第{index}行 {field.get('name', '')}({source})")
                 row.append(value if value is not None else "")
             rows.append(row)
+        if missing:
+            raise UserError(
+                "缺少飞书子表分镜必填字段内容，已停止写入: " + "; ".join(missing)
+            )
         return rows
 
     def _batch_create_storyboard(

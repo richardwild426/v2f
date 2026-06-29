@@ -26,6 +26,9 @@ from vtf.commands import (
     fetch as _fetch,
 )
 from vtf.commands import (
+    finish as _finish,
+)
+from vtf.commands import (
     init as _init,
 )
 from vtf.commands import (
@@ -69,6 +72,7 @@ main.add_command(_merge.cmd, name="merge")
 main.add_command(_analyze.cmd, name="analyze")
 main.add_command(_assemble.cmd, name="assemble")
 main.add_command(_emit.cmd, name="emit")
+main.add_command(_finish.cmd, name="finish")
 main.add_command(_init.cmd, name="init")
 main.add_command(_config_cmd.cmd, name="config")
 main.add_command(_install.cmd, name="install")
