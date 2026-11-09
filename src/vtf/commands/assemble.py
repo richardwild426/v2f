@@ -49,6 +49,14 @@ def collect_and_assemble(
 
     meta = json.loads(meta_path.read_text("utf-8"))
     lines_data = json.loads(lines_path.read_text("utf-8"))
+    raw_lines = lines_data.get("lines", lines_data.get("lines_text", []))
+
+    # 兼容带时间戳的 lines 格式：提取纯文本用于 assemble
+    if raw_lines and isinstance(raw_lines[0], dict):
+        lines = [item.get("text", str(item)) for item in raw_lines]
+    else:
+        lines = raw_lines
+
     items = [json.loads(p.read_text("utf-8")) for p in analysis_paths]
     return assemble(meta=meta, lines=lines_data["lines"], analyses=items)
 

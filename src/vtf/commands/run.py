@@ -10,7 +10,7 @@ from vtf.errors import VtfError
 from vtf.pipeline.analyze import analyze
 from vtf.pipeline.download import download
 from vtf.pipeline.fetch import fetch
-from vtf.pipeline.merge import merge_into_lines
+from vtf.pipeline.merge import merge_into_lines, merge_into_lines_with_timestamps
 from vtf.pipeline.screenshot import take_screenshots, take_screenshots_with_description
 from vtf.transcribe import transcribe
 
@@ -51,26 +51,42 @@ def cmd(ctx: click.Context, url: str) -> None:
         )
 
         log.info("merge", step="run")
-        lines = merge_into_lines(transcript["sentences"])
+        sentences = transcript["sentences"]
+        has_timestamps = bool(sentences) and isinstance(sentences[0], dict) and "start_ms" in sentences[0]
+        if has_timestamps:
+            lines_with_ts = merge_into_lines_with_timestamps(sentences)
+            lines = [item["text"] for item in lines_with_ts]
+        else:
+            lines_with_ts = []
+            lines = merge_into_lines(sentences)
         lines_path = workdir / "lines.json"
-        lines_path.write_text(json.dumps({"lines": lines}, ensure_ascii=False), "utf-8")
+        if lines_with_ts:
+            # 保存带时间戳的 lines（截图命令需要）和纯文本 lines（analyze 需要）
+            lines_path.write_text(json.dumps({
+                "lines": lines_with_ts,
+                "lines_text": lines,
+            }, ensure_ascii=False), "utf-8")
+        else:
+            lines_path.write_text(json.dumps({"lines": lines}, ensure_ascii=False), "utf-8")
 
         # 截图步骤（如果启用且存在视频文件）
         screenshot_enabled = getattr(cfg, "screenshot", None) and getattr(cfg.screenshot, "enabled", True)
         if screenshot_enabled and video_path is not None:
             log.info("screenshot", step="run")
             try:
+                # 优先使用带时间戳的 lines，回退到纯文本
+                screenshot_lines = lines_with_ts if lines_with_ts else lines
                 ai_describe = getattr(cfg.screenshot, "ai_describe", False) if hasattr(cfg, "screenshot") else False
                 if ai_describe:
                     screenshots = take_screenshots_with_description(
                         video_path=video_path,
-                        lines=lines,
+                        lines=screenshot_lines,
                         cfg=cfg,
                     )
                 else:
                     screenshots = take_screenshots(
                         video_path=video_path,
-                        lines=lines,
+                        lines=screenshot_lines,
                         cfg=cfg,
                     )
                 screenshots_path = workdir / "screenshots.json"

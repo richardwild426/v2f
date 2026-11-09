@@ -82,11 +82,19 @@ def cmd(
         click.echo(f"错误：读取字幕文件失败：{e}", err=True)
         sys.exit(1)
 
-    # 提取字幕行
-    lines = data.get("lines", [])
-    if not lines:
+    # 提取字幕行 — 支持两种格式：
+    # 1. 带时间戳: {"lines": [{"text": "...", "start_ms": 1000, "end_ms": 2000}, ...]}
+    # 2. 纯文本:   {"lines": ["字幕1", "字幕2", ...]}
+    raw_lines = data.get("lines", [])
+    if not raw_lines:
         click.echo("警告：没有找到字幕数据", err=True)
         sys.exit(1)
+
+    if isinstance(raw_lines[0], dict) and "start_ms" in raw_lines[0]:
+        lines = raw_lines
+    else:
+        # 纯文本行 — 转为 dict 格式，无时间戳
+        lines = [{"text": t, "start_ms": 0, "end_ms": 0} for t in raw_lines]
 
     # 更新配置
     if not hasattr(cfg, "screenshot"):

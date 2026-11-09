@@ -199,7 +199,14 @@ def cmd(
             try:
                 with open(subtitle_file, encoding="utf-8") as f:
                     data = json.load(f)
-                lines = data.get("lines", [])
+                raw_lines = data.get("lines", [])
+                # 支持带时间戳和纯文本两种格式
+                if raw_lines and isinstance(raw_lines[0], dict) and "start_ms" in raw_lines[0]:
+                    lines = raw_lines
+                elif raw_lines and isinstance(raw_lines[0], str):
+                    lines = [{"text": t, "start_ms": 0, "end_ms": 0} for t in raw_lines]
+                else:
+                    lines = raw_lines
             except (json.JSONDecodeError, OSError) as e:
                 click.echo(f"警告：读取字幕文件失败：{e}", err=True)
 
